@@ -113,12 +113,12 @@ export function useRunnerController(api: RunnerApi) {
     }
   }, [api, selectedProfile])
 
-  const addSQLFile = useCallback(async () => {
+  const addSQLFiles = useCallback(async () => {
     if (!selectedProfile) return
     try {
       setError(null)
-      const added = await api.addScriptFromDialog(selectedProfile.id)
-      if (added) {
+      const added = await api.addScriptsFromDialog(selectedProfile.id)
+      if (added.length > 0) {
         await refreshSelectedProfile()
       }
     } catch (cause) {
@@ -275,7 +275,7 @@ export function useRunnerController(api: RunnerApi) {
     setRunOnError,
     setRunTransactionMode,
     testConnection,
-    addSQLFile,
+    addSQLFiles,
     removeScript,
     setScriptEnabled,
     setScriptTransactionMode,
