@@ -8,7 +8,7 @@
 
 Build a modern SQL script runner for developers who need to prepare or repair local MySQL databases when database dumps or legacy setup tools are incomplete or unreliable.
 
-The application must be distributed as a Windows `.exe`, provide both a CLI and a small modern desktop GUI, and keep all real SQL scripts, database infrastructure details, profiles, and runtime configuration outside the Git repository.
+The application must be distributed as a single Windows `.exe`, provide both a CLI and a small modern desktop GUI, and keep all real SQL scripts, database infrastructure details, profiles, and runtime configuration outside the Git repository.
 
 The SQL files supplied during design are reference material only and must never be committed to the repository.
 
@@ -19,7 +19,8 @@ The SQL files supplied during design are reference material only and must never 
 - Wails v2.13 desktop application.
 - React + TypeScript frontend.
 - Tailwind CSS v4 for styling.
-- CLI and GUI backed by the same Go application services.
+- One distributed `.exe` exposes both CLI and GUI behavior.
+- CLI and GUI are backed by the same Go application services.
 - MySQL 5.6, MySQL 5.7, and MySQL 8.x support.
 - Detect server version automatically after connecting.
 - SQL scripts are configured/imported through the GUI or CLI.
@@ -66,6 +67,12 @@ The SQL files supplied during design are reference material only and must never 
 - Tailwind CSS v4.
 
 Wails embeds the built frontend assets into the Windows application and exposes Go services to the TypeScript frontend. The application core must not depend on React or Wails-specific UI behavior.
+
+### Windows packaging
+
+The distributed artifact is a single application `.exe`. Wails uses the Microsoft WebView2 runtime on Windows. To preserve the single-file distribution experience on Windows 10 machines where WebView2 may not already be installed, release builds must use Wails' embedded WebView2 bootstrapper strategy (`-webview2 embed`). If a suitable runtime is missing, the embedded Microsoft bootstrapper can install it without requiring the runner to ship a second companion file.
+
+The actual WebView2 runtime remains a Windows runtime dependency; it is not statically linked into the Go executable.
 
 ## 5. Application architecture
 
@@ -463,27 +470,31 @@ Focus on critical state and flows rather than snapshot-heavy coverage:
 
 v1 is complete when a developer on Windows 10/11 can:
 
-1. Install/run a built `.exe` without installing Java.
-2. Create a profile through GUI or CLI.
-3. Configure complete MySQL connection information.
-4. Import SQL files and have the runner copy them into AppData.
-5. Reorder and enable/disable profile scripts.
-6. Connect to MySQL 5.6, 5.7, or 8.x and see the detected version.
-7. Execute the profile sequentially.
-8. Choose whether failures stop or continue execution.
-9. Use supported transaction modes and see commit/rollback outcomes.
-10. See concise status and optionally detailed logs.
-11. Export a complete profile ZIP including credentials and SQL files.
-12. Import that ZIP on another machine/user account.
-13. Receive an overwrite warning when importing an existing profile ID.
-14. Successfully overwrite the profile after confirmation.
-15. Resize the GUI while keeping the layout usable.
-16. Verify that no real infrastructure data or supplied company SQL exists in Git history introduced by this project.
+1. Run one distributed `.exe` without installing Java.
+2. Launch the GUI by running the executable without CLI arguments.
+3. Use CLI commands through that same executable.
+4. On a Windows 10 machine missing WebView2, use the embedded bootstrapper flow rather than needing a second runner file.
+5. Create a profile through GUI or CLI.
+6. Configure complete MySQL connection information.
+7. Import SQL files and have the runner copy them into AppData.
+8. Reorder and enable/disable profile scripts.
+9. Connect to MySQL 5.6, 5.7, or 8.x and see the detected version.
+10. Execute the profile sequentially.
+11. Choose whether failures stop or continue execution.
+12. Use supported transaction modes and see commit/rollback outcomes.
+13. See concise status and optionally detailed logs.
+14. Export a complete profile ZIP including credentials and SQL files.
+15. Import that ZIP on another machine/user account.
+16. Receive an overwrite warning when importing an existing profile ID.
+17. Successfully overwrite the profile after confirmation.
+18. Resize the GUI while keeping the layout usable.
+19. Verify that no real infrastructure data or supplied company SQL exists in Git history introduced by this project.
 
 ## 19. Key design decisions
 
 - Windows-only v1 keeps packaging and UI behavior focused.
-- Wails v2.13 is preferred over Wails v3 because v3 remains pre-release/alpha.
+- Wails v2.13 is preferred over Wails v3 while v3 remains outside the stable v2 line used for this project.
+- Release builds use Wails' embedded WebView2 bootstrapper strategy to preserve a single distributed `.exe` experience.
 - React/TypeScript/Tailwind provides a modern GUI without moving database logic out of Go.
 - AppData is the single source of truth for local runtime profiles and SQL files.
 - CLI and GUI share one core to prevent behavioral drift.
