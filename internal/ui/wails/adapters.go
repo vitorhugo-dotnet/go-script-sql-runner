@@ -15,13 +15,21 @@ const (
 
 type DialogAdapter struct{}
 
-func (DialogAdapter) OpenSQLFile(ctx context.Context) (string, error) {
-	return wailsruntime.OpenFileDialog(ctx, wailsruntime.OpenDialogOptions{
-		Title: "Adicionar script SQL",
+func sqlDialogOptions() wailsruntime.OpenDialogOptions {
+	return wailsruntime.OpenDialogOptions{
+		Title: "Adicionar scripts SQL",
 		Filters: []wailsruntime.FileFilter{
 			{DisplayName: "SQL (*.sql)", Pattern: "*.sql"},
 		},
-	})
+	}
+}
+
+func (DialogAdapter) OpenSQLFile(ctx context.Context) (string, error) {
+	return wailsruntime.OpenFileDialog(ctx, sqlDialogOptions())
+}
+
+func (DialogAdapter) OpenSQLFiles(ctx context.Context) ([]string, error) {
+	return wailsruntime.OpenMultipleFilesDialog(ctx, sqlDialogOptions())
 }
 
 func (DialogAdapter) OpenProfileZIP(ctx context.Context) (string, error) {
