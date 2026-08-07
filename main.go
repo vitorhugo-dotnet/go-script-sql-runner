@@ -21,5 +21,5 @@ func main() {
 		os.Exit(1)
 	}
 	service := app.NewService(storage.NewRepository(root))
-	os.Exit(cli.Execute(context.Background(), service, os.Args[1:], os.Stdout, os.Stderr))
+	os.Exit(cli.Execute(context.Background(), service, os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
 }

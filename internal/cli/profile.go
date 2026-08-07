@@ -4,14 +4,21 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/spf13/cobra"
 	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/profile"
 )
 
-func newProfileCommand(ctx context.Context, service Service) *cobra.Command {
+func newProfileCommand(ctx context.Context, service Service, stdin io.Reader, stderr io.Writer) *cobra.Command {
 	command := &cobra.Command{Use: "profile", Short: "Manage script profiles"}
-	command.AddCommand(newProfileListCommand(ctx, service), newProfileCreateCommand(ctx, service), newProfileShowCommand(ctx, service))
+	command.AddCommand(
+		newProfileListCommand(ctx, service),
+		newProfileCreateCommand(ctx, service),
+		newProfileShowCommand(ctx, service),
+		newProfileExportCommand(ctx, service, stderr),
+		newProfileImportCommand(ctx, service, stdin, stderr),
+	)
 	return command
 }
 

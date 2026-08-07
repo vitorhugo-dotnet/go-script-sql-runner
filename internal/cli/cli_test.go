@@ -18,7 +18,7 @@ import (
 func executeTest(t *testing.T, service Service, args ...string) (int, string, string) {
 	t.Helper()
 	var stdout, stderr bytes.Buffer
-	code := Execute(context.Background(), service, args, &stdout, &stderr)
+	code := executeWithService(context.Background(), service, args, strings.NewReader(""), &stdout, &stderr)
 	return code, stdout.String(), stderr.String()
 }
 
@@ -81,6 +81,9 @@ func (f *fakeService) RunProfile(_ context.Context, _ string, opts executor.RunO
 	sink.Emit(executor.Event{Level: executor.LevelInfo, ScriptID: "one", Message: "Completed One"})
 	return executor.Summary{Succeeded: 1}, nil
 }
+func (f *fakeService) InspectProfileArchive(context.Context, string) (profile.ArchiveInspection, error) { return profile.ArchiveInspection{}, nil }
+func (f *fakeService) ExportProfile(context.Context, string, string) error { return nil }
+func (f *fakeService) ImportProfile(context.Context, string, bool) (profile.Profile, error) { return profile.Profile{}, nil }
 
 func TestConnectionAndRunCommands(t *testing.T) {
 	service := &fakeService{}
