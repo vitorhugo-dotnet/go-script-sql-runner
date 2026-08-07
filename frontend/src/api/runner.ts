@@ -1,0 +1,78 @@
+import type {
+  ExecutionEvent,
+  Profile,
+  RunOptions,
+  RunSummary,
+  RunnerApi,
+  Script,
+  ServerCapabilities,
+  TransactionMode,
+} from './types'
+
+interface DesktopBinding {
+  ListProfiles(): Promise<Profile[]>
+  GetProfile(profileID: string): Promise<Profile>
+  CreateProfile(profile: Profile): Promise<Profile>
+  UpdateProfile(profile: Profile): Promise<Profile>
+  AddScriptFromDialog(profileID: string): Promise<Script | null>
+  RemoveScript(profileID: string, scriptID: string): Promise<void>
+  ReorderScripts(profileID: string, orderedIDs: string[]): Promise<Profile>
+  SetScriptEnabled(profileID: string, scriptID: string, enabled: boolean): Promise<Profile>
+  SetScriptTransactionMode(profileID: string, scriptID: string, mode: TransactionMode | ''): Promise<Profile>
+  TestConnection(profileID: string): Promise<ServerCapabilities>
+  RunProfile(profileID: string, options: RunOptions): Promise<RunSummary>
+  StopRun(): Promise<boolean>
+  ImportProfileFromDialog(): Promise<Profile | null>
+  ExportProfileToDialog(profileID: string): Promise<string>
+}
+
+interface WailsRuntime {
+  EventsOn(eventName: string, callback: (payload?: unknown) => void): () => void
+}
+
+declare global {
+  interface Window {
+    go?: {
+      wailsui?: {
+        DesktopApp?: DesktopBinding
+      }
+    }
+    runtime?: WailsRuntime
+  }
+}
+
+function desktop(): DesktopBinding {
+  const binding = window.go?.wailsui?.DesktopApp
+  if (!binding) {
+    throw new Error('Wails desktop bindings are unavailable')
+  }
+  return binding
+}
+
+export const wailsRunnerApi: RunnerApi = {
+  listProfiles: () => desktop().ListProfiles(),
+  getProfile: (profileID) => desktop().GetProfile(profileID),
+  createProfile: (profile) => desktop().CreateProfile(profile),
+  updateProfile: (profile) => desktop().UpdateProfile(profile),
+  addScriptFromDialog: (profileID) => desktop().AddScriptFromDialog(profileID),
+  removeScript: (profileID, scriptID) => desktop().RemoveScript(profileID, scriptID),
+  reorderScripts: (profileID, orderedIDs) => desktop().ReorderScripts(profileID, orderedIDs),
+  setScriptEnabled: (profileID, scriptID, enabled) => desktop().SetScriptEnabled(profileID, scriptID, enabled),
+  setScriptTransactionMode: (profileID, scriptID, mode) =>
+    desktop().SetScriptTransactionMode(profileID, scriptID, mode),
+  testConnection: (profileID) => desktop().TestConnection(profileID),
+  runProfile: (profileID, options) => desktop().RunProfile(profileID, options),
+  stopRun: () => desktop().StopRun(),
+  importProfileFromDialog: () => desktop().ImportProfileFromDialog(),
+  exportProfileToDialog: (profileID) => desktop().ExportProfileToDialog(profileID),
+  onExecutionEvent: (handler) => {
+    if (!window.runtime?.EventsOn) {
+      return () => undefined
+    }
+    return window.runtime.EventsOn('runner:execution-event', (payload) => {
+      if (payload && typeof payload === 'object') {
+        handler(payload as ExecutionEvent)
+      }
+    })
+  },
+}
