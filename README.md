@@ -1,82 +1,23 @@
 # Go Script SQL Runner
 
-Desktop runner for executing ordered SQL scripts against MySQL/MariaDB with reusable local profiles.
+## Purpose
 
-## What it does
+Go Script SQL Runner is a compact Windows desktop application for executing ordered SQL scripts against MySQL-compatible databases with reusable local profiles. The same executable also exposes the CLI when started with arguments.
 
-- Runs as a compact Windows desktop app when started without arguments.
-- Uses the same executable for CLI commands when arguments are supplied.
-- Stores reusable profiles with connection settings, execution policy and ordered SQL scripts.
-- Supports per-run failure and transaction overrides without changing the saved profile.
-- Supports per-script enable/disable, ordering and transaction overrides.
-- Tests database connectivity and reports the detected server version.
-- Streams execution events into the desktop log panel and persists execution logs locally.
-- Imports and exports complete profiles as ZIP archives, including the SQL files and database connection settings.
+## Requirements
 
-## Security note
+For end users:
 
-Profile exports intentionally contain the configured database host, username and password. The ZIP is **not encrypted**. The application displays a warning before export and should only be used through the intended internal sharing channel.
+- Windows 10 or Windows 11
+- Network access to the target MySQL/MariaDB server
 
-Passwords are not displayed in the connection summary or execution logs.
-
-## Desktop usage
-
-Start the executable without arguments:
-
-```powershell
-.\go-script-sql-runner.exe
-```
-
-Create a profile from **New**, configure the connection, add one or more SQL scripts, test the connection and run them in the displayed order.
-
-The main execution controls allow temporary overrides for:
-
-- **On failure:** `Continue` or `Stop`
-- **Transaction:** `Auto commit`, `Transaction` or `Script managed`
-
-A script-level transaction setting overrides the run/profile default for that specific script.
-
-## CLI usage
-
-The same executable routes commands with arguments to the CLI:
-
-```powershell
-.\go-script-sql-runner.exe profile list
-.\go-script-sql-runner.exe profile show <profile-id>
-.\go-script-sql-runner.exe run <profile-id>
-```
-
-Use the built-in help for the complete command list:
-
-```powershell
-.\go-script-sql-runner.exe --help
-```
-
-## Local development
-
-Requirements:
+For development/builds:
 
 - Go 1.26+
 - Node.js 24+
-- Wails v2.13
-- Windows for the final desktop executable
+- Wails v2.13.0
 
-Frontend development:
-
-```powershell
-cd frontend
-npm install
-npm test
-npm run build
-```
-
-Go tests:
-
-```powershell
-go test ./...
-```
-
-## Build the Windows executable
+## Build
 
 Use the reproducible build script:
 
@@ -84,31 +25,131 @@ Use the reproducible build script:
 .\scripts\build.ps1
 ```
 
-The resulting executable is written to:
+It runs Go tests, installs the locked frontend dependencies with `npm ci`, runs frontend tests/build, and builds the Wails executable with the embedded WebView2 bootstrapper.
+
+Output:
 
 ```text
 build/bin/go-script-sql-runner.exe
 ```
 
-The release build embeds the WebView2 bootstrapper and keeps the console subsystem so the same binary can service CLI usage. A standalone console opened only for GUI launch is hidden by the application.
+## AppData location
+
+Application profiles and logs are stored under the current Windows user's configuration directory:
+
+```text
+%AppData%\GoScriptSQLRunner\
+├── profiles\
+└── logs\
+```
+
+Each profile owns its copied SQL scripts under its profile directory. The frontend does not write these files directly; storage is managed by the Go application layer.
+
+## GUI usage
+
+Start the executable without arguments:
+
+```powershell
+.\go-script-sql-runner.exe
+```
+
+The default desktop window exposes the essential workflow without navigating to another screen:
+
+1. Create or select a profile.
+2. Configure host, port, database/schema, username and password.
+3. Add one or more `.sql` files. Multiple files can be selected in the native picker.
+4. Reorder, enable/disable or set a transaction override per script when needed.
+5. Test the connection and review the detected server version.
+6. Choose the run-only failure and transaction policies.
+7. Run the scripts and follow execution events in the bottom log panel.
+
+Run-level overrides do not silently modify the saved profile. A script-level transaction override takes precedence over the run/profile default for that script.
+
+## CLI usage
+
+Supplying arguments routes the same executable to the CLI:
+
+```powershell
+.\go-script-sql-runner.exe profile list
+.\go-script-sql-runner.exe profile show example
+.\go-script-sql-runner.exe run example
+```
+
+For the complete command list:
+
+```powershell
+.\go-script-sql-runner.exe --help
+```
+
+## Profile import/export warning
+
+Profile ZIP exports intentionally contain the configured database host, username and password together with the profile's SQL scripts. The ZIP is **not encrypted**.
+
+The application displays a warning before export. Importing a profile whose ID already exists also requires explicit confirmation before the existing configuration and SQL files are completely replaced.
+
+Passwords are not shown in the connection summary or execution logs.
+
+## MySQL compatibility
+
+The repository includes integration coverage against MySQL 5.6, MySQL 5.7 and MySQL 8.0. The connection test reports the detected server family/version to the desktop UI.
+
+MariaDB connections are supported by the database layer, with server capabilities detected at runtime.
+
+## Transaction and DDL caveat
+
+Available transaction modes are:
+
+- `auto_commit`: execute using normal database autocommit behavior.
+- `transaction`: the runner starts and finishes the transaction.
+- `script_managed`: transaction statements are controlled by the SQL script itself.
+
+Some MySQL DDL statements cause implicit commits. When runner-managed transaction mode is used, such statements can make a complete rollback impossible. The runner analyzes scripts and emits a warning when this condition is detected.
 
 ## Synthetic profile example
 
-Profiles are application-managed. A conceptual example looks like this:
+Profiles are application-managed. This example is intentionally synthetic:
 
 ```yaml
-id: example-profile
-name: Example
+id: example
+name: example
 version: 1
 connection:
-  host: db.internal.example
+  host: 127.0.0.1
   port: 3306
-  database: sample_db
-  username: runner_user
-  password: replace-me
+  database: example
+  username: dev
+  password: dev
 execution:
   on_error: continue
   transaction_mode: auto_commit
+scripts:
+  - id: example
+    name: example.sql
+    file: scripts/example.sql
+    enabled: true
+    order: 10
 ```
 
-Do not commit real profile exports, SQL production data or credentials to the repository.
+## Repository security rules
+
+- Never commit real database credentials, internal hosts, production schemas or exported profile ZIPs.
+- Production/local SQL files are runtime data and are ignored; only explicitly whitelisted synthetic test fixtures belong in Git.
+- Logs and local AppData/profile directories are ignored.
+- Keep examples synthetic using `127.0.0.1`, `example`, `dev` and disposable test data only.
+
+## Local development
+
+Frontend:
+
+```powershell
+cd frontend
+npm ci
+npm test
+npm run build
+```
+
+Go:
+
+```powershell
+go test ./...
+```
