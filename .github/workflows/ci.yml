@@ -49,6 +49,10 @@ jobs:
         working-directory: frontend
         run: npm install
 
+      - name: Run frontend tests when configured
+        working-directory: frontend
+        run: npm test --if-present
+
       - name: Typecheck frontend
         working-directory: frontend
         run: npx tsc -b
