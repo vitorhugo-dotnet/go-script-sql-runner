@@ -77,6 +77,7 @@ export interface RunnerApi {
   createProfile(profile: Profile): Promise<Profile>
   updateProfile(profile: Profile): Promise<Profile>
   addScriptFromDialog(profileID: string): Promise<Script | null>
+  addScriptsFromDialog(profileID: string): Promise<Script[]>
   removeScript(profileID: string, scriptID: string): Promise<void>
   reorderScripts(profileID: string, orderedIDs: string[]): Promise<Profile>
   setScriptEnabled(profileID: string, scriptID: string, enabled: boolean): Promise<Profile>
