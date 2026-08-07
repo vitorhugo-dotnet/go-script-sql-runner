@@ -1,0 +1,45 @@
+services:
+  mysql56:
+    image: mysql:5.6.51
+    environment:
+      MYSQL_ROOT_PASSWORD: runnerpass
+      MYSQL_ROOT_HOST: "%"
+      MYSQL_DATABASE: runner_test
+    ports:
+      - "3356:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -prunnerpass --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  mysql57:
+    image: mysql:5.7.44
+    environment:
+      MYSQL_ROOT_PASSWORD: runnerpass
+      MYSQL_ROOT_HOST: "%"
+      MYSQL_DATABASE: runner_test
+    ports:
+      - "3357:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -prunnerpass --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  mysql80:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: runnerpass
+      MYSQL_ROOT_HOST: "%"
+      MYSQL_DATABASE: runner_test
+    ports:
+      - "3380:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -prunnerpass --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
