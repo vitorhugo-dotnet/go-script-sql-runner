@@ -16,12 +16,20 @@ import (
 type connectorFunc func(context.Context, profile.Connection) (*database.Client, error)
 
 type Service struct {
-	repository *storage.Repository
-	connect    connectorFunc
+	repository     *storage.Repository
+	connect        connectorFunc
+	persistentSink executor.Sink
 }
 
-func NewService(repository *storage.Repository) *Service {
-	return &Service{repository: repository, connect: database.Connect}
+// NewService creates the shared application service. A persistent execution
+// sink may be supplied by production bootstrap; tests and lightweight callers
+// may omit it.
+func NewService(repository *storage.Repository, persistentSink ...executor.Sink) *Service {
+	var sink executor.Sink
+	if len(persistentSink) > 0 {
+		sink = persistentSink[0]
+	}
+	return &Service{repository: repository, connect: database.Connect, persistentSink: sink}
 }
 
 func (s *Service) CreateProfile(_ context.Context, p profile.Profile) (profile.Profile, error) {
@@ -135,5 +143,16 @@ func (s *Service) RunProfile(ctx context.Context, profileID string, opts executo
 		return executor.Summary{}, err
 	}
 	defer client.Close()
-	return executor.Run(ctx, client, p, s.repository.ScriptRoot(profileID), opts, sink), nil
+	combined := fanOutSink{s.persistentSink, sink}
+	return executor.Run(ctx, client, p, s.repository.ScriptRoot(profileID), opts, combined), nil
+}
+
+type fanOutSink []executor.Sink
+
+func (sinks fanOutSink) Emit(event executor.Event) {
+	for _, sink := range sinks {
+		if sink != nil {
+			sink.Emit(event)
+		}
+	}
 }
