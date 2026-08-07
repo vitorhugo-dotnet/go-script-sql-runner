@@ -31,6 +31,11 @@ func Run(ctx context.Context, client *database.Client, p profile.Profile, script
 		onError = options.OnError
 	}
 
+	transactionMode := p.Execution.TransactionMode
+	if options.TransactionMode != "" {
+		transactionMode = options.TransactionMode
+	}
+
 	for _, script := range scripts {
 		if !script.Enabled {
 			continue
@@ -43,7 +48,7 @@ func Run(ctx context.Context, client *database.Client, p profile.Profile, script
 		started := time.Now()
 		emit(sink, Event{Time: started, Level: LevelInfo, ScriptID: script.ID, Message: "Starting " + script.Name})
 
-		mode := p.Execution.TransactionMode
+		mode := transactionMode
 		if script.TransactionMode != "" {
 			mode = script.TransactionMode
 		}

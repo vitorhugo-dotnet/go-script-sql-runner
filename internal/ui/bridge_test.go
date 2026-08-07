@@ -58,6 +58,7 @@ type fakeService struct {
 	imports        []bool
 	exportedTo     string
 	addedPath      string
+	addedPaths     []string
 	runStarted     chan struct{}
 }
 
@@ -74,6 +75,7 @@ func (s *fakeService) GetProfile(_ context.Context, id string) (profile.Profile,
 func (s *fakeService) UpdateProfile(_ context.Context, p profile.Profile) (profile.Profile, error) { return p, nil }
 func (s *fakeService) AddScript(_ context.Context, _ string, source string) (profile.Script, error) {
 	s.addedPath = source
+	s.addedPaths = append(s.addedPaths, source)
 	return profile.Script{ID: "added", Name: "added", File: "scripts/added.sql", Enabled: true, Order: 10}, nil
 }
 func (s *fakeService) RemoveScript(context.Context, string, string) error { return nil }

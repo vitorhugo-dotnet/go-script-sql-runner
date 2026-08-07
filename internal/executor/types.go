@@ -52,5 +52,8 @@ type Summary struct {
 
 type RunOptions struct {
 	// OnError overrides the profile only when non-empty.
-	OnError profile.OnError
+	OnError profile.OnError `json:"onError,omitempty"`
+	// TransactionMode overrides the profile default only when non-empty.
+	// Per-script overrides still take precedence.
+	TransactionMode profile.TransactionMode `json:"transactionMode,omitempty"`
 }

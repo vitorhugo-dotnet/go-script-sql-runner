@@ -67,6 +67,12 @@ func (a *DesktopApp) AddScriptFromDialog(profileID string) (*profile.Script, err
 	return a.bridge.AddScriptFromDialog(ctx, profileID)
 }
 
+func (a *DesktopApp) AddScriptsFromDialog(profileID string) ([]profile.Script, error) {
+	ctx, err := a.appContext()
+	if err != nil { return nil, err }
+	return a.bridge.AddScriptsFromDialog(ctx, profileID)
+}
+
 func (a *DesktopApp) RemoveScript(profileID, scriptID string) error {
 	ctx, err := a.appContext()
 	if err != nil { return err }
