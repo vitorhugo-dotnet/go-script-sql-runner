@@ -68,6 +68,7 @@ export interface RunSummary {
 
 export interface RunOptions {
   onError?: OnError | ''
+  transactionMode?: TransactionMode | ''
 }
 
 export interface RunnerApi {
