@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -45,27 +45,7 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: frontend
-        run: npm install
-
-      - name: Store generated lockfile as Git blob
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $content = Get-Content 'frontend/package-lock.json' -Raw
-          @{ content = $content; encoding = 'utf-8' } | ConvertTo-Json -Compress | Set-Content 'lock-blob.json' -NoNewline
-          $sha = gh api --method POST "repos/$env:GITHUB_REPOSITORY/git/blobs" --input 'lock-blob.json' --jq '.sha'
-          if (-not $sha) { throw 'Git blob SHA was not returned.' }
-          Set-Content 'generated-lock-sha.txt' $sha -NoNewline
-          Write-Host "Generated lock blob: $sha"
-
-      - name: Upload generated lock blob SHA
-        uses: actions/upload-artifact@v4
-        with:
-          name: generated-lock-blob-sha
-          path: generated-lock-sha.txt
-          if-no-files-found: error
-          retention-days: 1
+        run: npm ci
 
       - name: Run frontend tests when configured
         working-directory: frontend
@@ -101,7 +81,7 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: frontend
-        run: npm install
+        run: npm ci
 
       - name: Install Wails CLI
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
