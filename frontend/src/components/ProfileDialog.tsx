@@ -94,10 +94,17 @@ export default function ProfileDialog({ open, mode, profile, onCancel, onSave }:
     <dialog
       open
       aria-label={mode === 'create' ? 'New profile' : 'Edit profile'}
+      aria-describedby={error ? 'profile-dialog-error' : undefined}
       className="fixed inset-0 z-50 m-auto w-[min(92vw,520px)] rounded-xl border border-slate-700 bg-slate-950 p-0 text-slate-100 shadow-2xl backdrop:bg-black/60"
       onCancel={(event) => {
         event.preventDefault()
         onCancel()
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          onCancel()
+        }
       }}
     >
       <form className="grid gap-3 p-4" onSubmit={submit}>
@@ -207,7 +214,11 @@ export default function ProfileDialog({ open, mode, profile, onCancel, onSave }:
           </label>
         </div>
 
-        {error && <p role="alert" className="text-xs text-red-300">{error}</p>}
+        {error && (
+          <p id="profile-dialog-error" role="alert" className="text-xs text-red-300">
+            {error}
+          </p>
+        )}
 
         <div className="flex justify-end gap-2 pt-1">
           <button
