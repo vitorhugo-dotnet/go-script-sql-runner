@@ -100,7 +100,7 @@ func TestConnectionAndRunCommands(t *testing.T) {
 
 func TestRunFlagsAreMutuallyExclusive(t *testing.T) {
 	code, _, stderr := executeTest(t, &fakeService{}, "run", "profile", "--stop-on-error", "--continue-on-error")
-	if code == 0 || !strings.Contains(stderr, "mutually exclusive") {
+	if code == 0 || !strings.Contains(stderr, "stop-on-error") || !strings.Contains(stderr, "continue-on-error") {
 		t.Fatalf("code=%d stderr=%q", code, stderr)
 	}
 }
