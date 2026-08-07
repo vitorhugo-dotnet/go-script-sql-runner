@@ -6,13 +6,13 @@ describe('main runner workspace', () => {
   it('shows the essential runner controls in the main window', () => {
     render(<App />)
 
-    expect(screen.getByText('Profile')).toBeInTheDocument()
+    expect(screen.getByLabelText('Profile')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Import' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Test Connection' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add SQL' })).toBeInTheDocument()
-    expect(screen.getByText('On failure')).toBeInTheDocument()
-    expect(screen.getByText('Transaction')).toBeInTheDocument()
+    expect(screen.getByLabelText('On failure')).toBeInTheDocument()
+    expect(screen.getByLabelText('Transaction')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Run' })).toBeInTheDocument()
     expect(screen.getByText('Logs')).toBeInTheDocument()
   })
