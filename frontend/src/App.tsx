@@ -14,6 +14,17 @@ interface AppProps {
   api?: RunnerApi
 }
 
+function formatEventTime(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  })
+}
+
 export default function App({ api = wailsRunnerApi }: AppProps) {
   const controller = useRunnerController(api)
   const [detailedLogs, setDetailedLogs] = useState(false)
@@ -251,10 +262,27 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
               <span className="text-slate-500">Execution logs will appear here.</span>
             )}
             {controller.logs.map((event, index) => (
-              <div key={`${event.time}-${index}`} className="flex gap-2 font-mono">
-                <span className="shrink-0 text-slate-600">{event.level}</span>
-                <span>{event.message}</span>
-                {detailedLogs && event.detail && <span className="text-slate-500">{event.detail}</span>}
+              <div
+                key={`${event.time}-${event.scriptId ?? 'runner'}-${index}`}
+                className="grid grid-cols-[64px_42px_auto_minmax(0,1fr)] gap-2 font-mono"
+              >
+                <span className="shrink-0 text-slate-600">{formatEventTime(event.time)}</span>
+                <span
+                  className={
+                    event.level === 'ERROR'
+                      ? 'text-red-300'
+                      : event.level === 'WARN'
+                        ? 'text-amber-300'
+                        : 'text-slate-500'
+                  }
+                >
+                  {event.level}
+                </span>
+                <span className="text-slate-500">{event.scriptId ? `[${event.scriptId}]` : '[runner]'}</span>
+                <span className="min-w-0 text-slate-300">
+                  {event.message}
+                  {detailedLogs && event.detail ? <span className="text-slate-500"> · {event.detail}</span> : null}
+                </span>
               </div>
             ))}
           </div>
