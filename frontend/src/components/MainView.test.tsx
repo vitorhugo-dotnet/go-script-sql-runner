@@ -47,6 +47,7 @@ function fakeApi() {
     createProfile: vi.fn().mockResolvedValue(profile),
     updateProfile: vi.fn().mockResolvedValue(profile),
     addScriptFromDialog: vi.fn().mockResolvedValue(null),
+    addScriptsFromDialog: vi.fn().mockResolvedValue([]),
     removeScript: vi.fn().mockResolvedValue(undefined),
     reorderScripts: vi.fn().mockImplementation(async (_profileID: string, orderedIDs: string[]) => ({
       ...profile,
@@ -125,6 +126,18 @@ describe('main runner workspace', () => {
     expect(api.testConnection).toHaveBeenCalledWith('local-dev')
   })
 
+  it('opens the multi SQL operation from Add SQL', async () => {
+    const user = userEvent.setup()
+    const api = fakeApi()
+    render(<App api={api as never} />)
+
+    await screen.findByText('001-users.sql')
+    await user.click(screen.getByRole('button', { name: 'Add SQL' }))
+
+    expect(api.addScriptsFromDialog).toHaveBeenCalledWith('local-dev')
+    expect(api.addScriptFromDialog).not.toHaveBeenCalled()
+  })
+
   it('renders scripts and persists enable and reorder actions', async () => {
     const user = userEvent.setup()
     const api = fakeApi()
@@ -138,6 +151,25 @@ describe('main runner workspace', () => {
 
     await user.click(screen.getByRole('button', { name: 'Move 001-users.sql down' }))
     expect(api.reorderScripts).toHaveBeenCalledWith('local-dev', ['seed', 'users'])
+  })
+
+  it('sends run-only failure and transaction overrides without saving the profile', async () => {
+    const user = userEvent.setup()
+    const api = fakeApi()
+    render(<App api={api as never} />)
+
+    await screen.findByText('001-users.sql')
+    await user.selectOptions(screen.getByLabelText('On failure'), 'stop')
+    await user.selectOptions(screen.getByLabelText('Transaction'), 'transaction')
+    await user.click(screen.getByRole('button', { name: 'Run' }))
+
+    await waitFor(() =>
+      expect(api.runProfile).toHaveBeenCalledWith('local-dev', {
+        onError: 'stop',
+        transactionMode: 'transaction',
+      }),
+    )
+    expect(api.updateProfile).not.toHaveBeenCalled()
   })
 
   it('disables Run while executing and appends execution events to logs', async () => {
