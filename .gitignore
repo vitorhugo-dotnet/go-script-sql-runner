@@ -1,32 +1,32 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
+# Build/dependencies
+build/bin/
+frontend/node_modules/
+frontend/dist/
 
-# Test binary, built with `go test -c`
-*.test
+# Local runtime/profile artifacts
+GoScriptSQLRunner/
+appdata/
+.local/
+.superpowers/
+*.log
+*.profile.zip
+*.runner.zip
+profiles/
+scripts-local/
 
-# Code coverage profiles and other test artifacts
-*.out
-coverage.*
-*.coverprofile
-profile.cov
+# SQL is runtime data. Synthetic fixtures must be explicitly whitelisted.
+*.sql
+!test/fixtures/**/*.sql
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
-
-# Go workspace file
-go.work
-go.work.sum
-
-# env file
+# Environment/credentials
 .env
+.env.*
+!.env.example
+*.local.yaml
+*.local.yml
 
-# Editor/IDE
-# .idea/
-# .vscode/
+# IDE/OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
