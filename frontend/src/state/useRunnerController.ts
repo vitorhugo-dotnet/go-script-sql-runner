@@ -275,6 +275,7 @@ export function useRunnerController(api: RunnerApi) {
     setRunOnError,
     setRunTransactionMode,
     testConnection,
+    addSQLFile: addSQLFiles,
     addSQLFiles,
     removeScript,
     setScriptEnabled,
