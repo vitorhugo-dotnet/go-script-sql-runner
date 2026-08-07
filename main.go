@@ -1,30 +1,25 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"testing/fstest"
+	"os"
 
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/app"
+	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/cli"
+	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/storage"
 )
 
-var scaffoldAssets = fstest.MapFS{
-	"index.html": &fstest.MapFile{Data: []byte(`<!doctype html><html><body><main>Go Script SQL Runner</main></body></html>`)},
-}
-
 func main() {
-	err := wails.Run(&options.App{
-		Title:     "Go Script SQL Runner",
-		Width:     680,
-		Height:    540,
-		MinWidth:  560,
-		MinHeight: 420,
-		AssetServer: &assetserver.Options{
-			Assets: scaffoldAssets,
-		},
-	})
-	if err != nil {
-		fmt.Println("Error:", err)
+	if len(os.Args) == 1 {
+		fmt.Println("Go Script SQL Runner GUI will be enabled in the desktop UI implementation stage.")
+		return
 	}
+	root, err := storage.DefaultRoot()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
+		os.Exit(1)
+	}
+	service := app.NewService(storage.NewRepository(root))
+	os.Exit(cli.Execute(context.Background(), service, os.Args[1:], os.Stdout, os.Stderr))
 }
