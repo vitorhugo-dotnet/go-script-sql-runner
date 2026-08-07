@@ -20,6 +20,10 @@ type DialogPort interface {
 	ConfirmOverwrite(ctx context.Context, name string) (bool, error)
 }
 
+type MultiSQLDialogPort interface {
+	OpenSQLFiles(ctx context.Context) ([]string, error)
+}
+
 type EventPort interface {
 	EmitExecutionEvent(ctx context.Context, event executor.Event)
 	EmitExecutionFinished(ctx context.Context, summary executor.Summary)
@@ -84,6 +88,38 @@ func (b *Bridge) AddScriptFromDialog(ctx context.Context, profileID string) (*pr
 		return nil, err
 	}
 	return &script, nil
+}
+
+func (b *Bridge) AddScriptsFromDialog(ctx context.Context, profileID string) ([]profile.Script, error) {
+	multi, ok := b.dialogs.(MultiSQLDialogPort)
+	if !ok {
+		script, err := b.AddScriptFromDialog(ctx, profileID)
+		if err != nil || script == nil {
+			return nil, err
+		}
+		return []profile.Script{*script}, nil
+	}
+
+	paths, err := multi.OpenSQLFiles(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(paths) == 0 {
+		return nil, nil
+	}
+
+	added := make([]profile.Script, 0, len(paths))
+	for _, path := range paths {
+		if strings.TrimSpace(path) == "" {
+			continue
+		}
+		script, err := b.service.AddScript(ctx, profileID, path)
+		if err != nil {
+			return added, err
+		}
+		added = append(added, script)
+	}
+	return added, nil
 }
 
 func (b *Bridge) RemoveScript(ctx context.Context, profileID, scriptID string) error {
