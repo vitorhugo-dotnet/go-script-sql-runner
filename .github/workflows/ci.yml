@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - main
-    tags:
-      - 'v*'
   pull_request:
     branches:
       - main
@@ -16,7 +14,7 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -109,7 +107,7 @@ jobs:
   release:
     name: Publish GitHub Release
     needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -120,12 +118,41 @@ jobs:
           name: go-script-sql-runner-windows
           path: release
 
-      - name: Publish release
+      - name: Point latest tag to this build
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh release create "${GITHUB_REF_NAME}"
-          "release/go-script-sql-runner.exe#Windows executable"
-          --verify-tag
-          --generate-notes
-          --title "Go Script SQL Runner ${GITHUB_REF_NAME}"
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/latest" >/dev/null 2>&1; then
+            gh api \
+              --method PATCH \
+              "repos/${GITHUB_REPOSITORY}/git/refs/tags/latest" \
+              -f sha="${GITHUB_SHA}" \
+              -F force=true >/dev/null
+          else
+            gh api \
+              --method POST \
+              "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref='refs/tags/latest' \
+              -f sha="${GITHUB_SHA}" >/dev/null
+          fi
+
+      - name: Publish or update latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view latest >/dev/null 2>&1; then
+            gh release upload latest release/go-script-sql-runner.exe --clobber
+            gh release edit latest \
+              --title 'Go Script SQL Runner - Latest' \
+              --notes "Automated build from main. Commit: ${GITHUB_SHA}"
+          else
+            gh release create latest \
+              'release/go-script-sql-runner.exe#Windows executable' \
+              --target "${GITHUB_SHA}" \
+              --title 'Go Script SQL Runner - Latest' \
+              --notes "Automated build from main. Commit: ${GITHUB_SHA}"
+          fi
