@@ -20,6 +20,7 @@ export function useRunnerController(api: RunnerApi) {
   const [capabilities, setCapabilities] = useState<ServerCapabilities | null>(null)
   const [logs, setLogs] = useState<ExecutionEvent[]>([])
   const [runOnError, setRunOnError] = useState<OnError>('continue')
+  const [runTransactionMode, setRunTransactionMode] = useState<TransactionMode>('auto_commit')
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -29,6 +30,7 @@ export function useRunnerController(api: RunnerApi) {
     setCapabilities(null)
     if (profile) {
       setRunOnError(profile.execution.onError)
+      setRunTransactionMode(profile.execution.transactionMode)
     }
   }, [])
 
@@ -199,13 +201,16 @@ export function useRunnerController(api: RunnerApi) {
     try {
       setRunning(true)
       setError(null)
-      await api.runProfile(selectedProfile.id, { onError: runOnError })
+      await api.runProfile(selectedProfile.id, {
+        onError: runOnError,
+        transactionMode: runTransactionMode,
+      })
     } catch (cause) {
       setError(errorMessage(cause))
     } finally {
       setRunning(false)
     }
-  }, [api, runOnError, running, selectedProfile])
+  }, [api, runOnError, runTransactionMode, running, selectedProfile])
 
   const stopRun = useCallback(async () => {
     try {
@@ -260,6 +265,7 @@ export function useRunnerController(api: RunnerApi) {
     capabilities,
     logs,
     runOnError,
+    runTransactionMode,
     loading,
     running,
     error,
@@ -267,6 +273,7 @@ export function useRunnerController(api: RunnerApi) {
     selectProfile,
     saveProfile,
     setRunOnError,
+    setRunTransactionMode,
     testConnection,
     addSQLFile,
     removeScript,
