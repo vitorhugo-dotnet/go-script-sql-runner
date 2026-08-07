@@ -73,10 +73,29 @@ export function useRunnerController(api: RunnerApi) {
     }
   }, [api, applySelectedProfile])
 
+  const saveProfile = useCallback(
+    async (draft: Profile) => {
+      try {
+        setError(null)
+        const saved = draft.id ? await api.updateProfile(draft) : await api.createProfile(draft)
+        const loaded = await api.listProfiles()
+        setProfiles(loaded)
+        const fresh = await api.getProfile(saved.id)
+        applySelectedProfile(fresh)
+        return fresh
+      } catch (cause) {
+        setError(errorMessage(cause))
+        throw cause
+      }
+    },
+    [api, applySelectedProfile],
+  )
+
   const refreshSelectedProfile = useCallback(async () => {
     if (!selectedProfile) return null
     const refreshed = await api.getProfile(selectedProfile.id)
     setSelectedProfile(refreshed)
+    setProfiles((current) => current.map((item) => (item.id === refreshed.id ? refreshed : item)))
     return refreshed
   }, [api, selectedProfile])
 
@@ -126,6 +145,7 @@ export function useRunnerController(api: RunnerApi) {
         setError(null)
         const updated = await api.setScriptEnabled(selectedProfile.id, scriptID, enabled)
         setSelectedProfile(updated)
+        setProfiles((current) => current.map((item) => (item.id === updated.id ? updated : item)))
       } catch (cause) {
         setError(errorMessage(cause))
       }
@@ -140,6 +160,7 @@ export function useRunnerController(api: RunnerApi) {
         setError(null)
         const updated = await api.setScriptTransactionMode(selectedProfile.id, scriptID, mode)
         setSelectedProfile(updated)
+        setProfiles((current) => current.map((item) => (item.id === updated.id ? updated : item)))
       } catch (cause) {
         setError(errorMessage(cause))
       }
@@ -165,6 +186,7 @@ export function useRunnerController(api: RunnerApi) {
           scripts.map((script) => script.id),
         )
         setSelectedProfile(updated)
+        setProfiles((current) => current.map((item) => (item.id === updated.id ? updated : item)))
       } catch (cause) {
         setError(errorMessage(cause))
       }
@@ -243,6 +265,7 @@ export function useRunnerController(api: RunnerApi) {
     error,
     loadProfiles,
     selectProfile,
+    saveProfile,
     setRunOnError,
     testConnection,
     addSQLFile,
