@@ -25,18 +25,19 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Download all Go modules
-        run: go mod download all
+      - name: Generate Go dependency metadata
+        run: go mod tidy
 
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm install
 
-      - name: Upload generated lockfiles
+      - name: Upload generated dependency metadata
         uses: actions/upload-artifact@v4
         with:
-          name: generated-lockfiles
+          name: generated-dependency-metadata
           path: |
+            go.mod
             go.sum
             frontend/package-lock.json
           if-no-files-found: error
@@ -70,8 +71,8 @@ jobs:
           go-version: '1.26.5'
           cache: true
 
-      - name: Download all Go modules
-        run: go mod download all
+      - name: Generate Go dependency metadata
+        run: go mod tidy
 
       - name: Start MySQL 5.6, 5.7 and 8.0
         run: docker compose -f test/integration/docker-compose.yml up -d --wait
