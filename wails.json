@@ -1,0 +1,19 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "go-script-sql-runner",
+  "outputfilename": "go-script-sql-runner",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "Vitor Hugo"
+  },
+  "info": {
+    "companyName": "",
+    "productName": "Go Script SQL Runner",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright © 2026",
+    "comments": "Configurable MySQL script runner"
+  }
+}
