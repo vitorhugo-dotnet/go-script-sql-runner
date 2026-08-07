@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	executionEventName    = "execution:event"
-	executionFinishedName = "execution:finished"
+	executionEventName    = "runner:execution-event"
+	executionFinishedName = "runner:execution-finished"
 )
 
 type DialogAdapter struct{}
