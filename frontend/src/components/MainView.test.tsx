@@ -172,7 +172,7 @@ describe('main runner workspace', () => {
     expect(api.updateProfile).not.toHaveBeenCalled()
   })
 
-  it('disables Run while executing and appends execution events to logs', async () => {
+  it('disables Run while executing and appends execution events with script context to logs', async () => {
     const user = userEvent.setup()
     const api = fakeApi()
     let finishRun: ((value: unknown) => void) | undefined
@@ -200,6 +200,7 @@ describe('main runner workspace', () => {
       })
     })
     expect(await screen.findByText('Running 001-users.sql')).toBeInTheDocument()
+    expect(screen.getByText('[users]')).toBeInTheDocument()
 
     act(() => {
       finishRun?.({ results: [], succeeded: 2, failed: 0, aborted: false })
