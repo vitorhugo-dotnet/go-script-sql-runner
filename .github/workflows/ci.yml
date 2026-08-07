@@ -25,12 +25,21 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Download Go modules
-        run: go mod download
+      - name: Download all Go modules
+        run: go mod download all
 
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm install
+
+      - name: Upload generated lockfiles
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-lockfiles
+          path: |
+            go.sum
+            frontend/package-lock.json
+          if-no-files-found: error
 
       - name: Run Go tests
         run: go test ./...
@@ -52,15 +61,6 @@ jobs:
             throw 'Expected build/bin/go-script-sql-runner.exe was not produced.'
           }
 
-      - name: Upload generated lockfiles
-        uses: actions/upload-artifact@v4
-        with:
-          name: generated-lockfiles
-          path: |
-            go.sum
-            frontend/package-lock.json
-          if-no-files-found: error
-
   mysql-compatibility:
     runs-on: ubuntu-latest
     steps:
@@ -70,8 +70,8 @@ jobs:
           go-version: '1.26.5'
           cache: true
 
-      - name: Download Go modules
-        run: go mod download
+      - name: Download all Go modules
+        run: go mod download all
 
       - name: Start MySQL 5.6, 5.7 and 8.0
         run: docker compose -f test/integration/docker-compose.yml up -d --wait
