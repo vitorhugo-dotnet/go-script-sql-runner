@@ -110,13 +110,13 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
                 <option value="stop">Stop</option>
               </select>
             </label>
-            <label className="flex items-center gap-1 text-xs text-slate-300" title="Saved profile default">
+            <label className="flex items-center gap-1 text-xs text-slate-300">
               <span>Transaction</span>
               <select
                 aria-label="Transaction"
                 className={selectClass}
-                value={profile?.execution.transactionMode ?? 'auto_commit'}
-                onChange={() => undefined}
+                value={controller.runTransactionMode}
+                onChange={(event) => controller.setRunTransactionMode(event.target.value as TransactionMode)}
                 disabled={!profile || controller.running}
               >
                 <option value="auto_commit">Auto commit</option>
