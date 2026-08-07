@@ -1,7 +1,7 @@
 # Go Script SQL Runner — Design Specification
 
 **Date:** 2026-08-07  
-**Status:** Approved design, pending final user review  
+**Status:** Approved  
 **Target:** Windows 10/11
 
 ## 1. Goal
