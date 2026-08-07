@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/database"
-	applog "github.com/vitorhugo-dotnet/go-script-sql-runner/internal/logging"
 	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/profile"
+	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/redact"
 )
 
 const implicitCommitWarning = "script contains MySQL DDL that can cause an implicit commit; complete rollback is not guaranteed"
@@ -64,7 +64,7 @@ func Run(ctx context.Context, client *database.Client, p profile.Profile, script
 		ended := time.Now()
 		result := ScriptResult{ScriptID: script.ID, Name: script.Name, StartedAt: started, EndedAt: ended, Success: err == nil}
 		if err != nil {
-			redacted := applog.Redact(err.Error(), p.Connection.Password)
+			redacted := redact.Secrets(err.Error(), p.Connection.Password)
 			result.Error = redacted
 			summary.Failed++
 			emit(sink, Event{Time: ended, Level: LevelError, ScriptID: script.ID, Message: "Failed " + script.Name, Detail: redacted})

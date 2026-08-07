@@ -1,15 +1,8 @@
 package logging
 
-import "strings"
+import "github.com/vitorhugo-dotnet/go-script-sql-runner/internal/redact"
 
-// Redact replaces every non-empty secret in text with a fixed marker.
+// Redact is kept for callers that use the logging package directly.
 func Redact(text string, secrets ...string) string {
-	out := text
-	for _, secret := range secrets {
-		if secret == "" {
-			continue
-		}
-		out = strings.ReplaceAll(out, secret, "***")
-	}
-	return out
+	return redact.Secrets(text, secrets...)
 }
