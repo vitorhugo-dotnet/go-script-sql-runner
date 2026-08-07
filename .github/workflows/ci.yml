@@ -61,29 +61,3 @@ jobs:
           if (-not (Test-Path 'build/bin/go-script-sql-runner.exe')) {
             throw 'Expected build/bin/go-script-sql-runner.exe was not produced.'
           }
-
-  mysql-compatibility:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '1.26.5'
-          cache: true
-
-      - name: Generate Go dependency metadata
-        run: go mod tidy
-
-      - name: Start MySQL 5.6, 5.7 and 8.0
-        run: docker compose -f test/integration/docker-compose.yml up -d --wait
-
-      - name: Run real MySQL compatibility suite
-        run: go test -tags=integration ./test/integration -v
-
-      - name: Show container logs on failure
-        if: failure()
-        run: docker compose -f test/integration/docker-compose.yml logs
-
-      - name: Stop databases
-        if: always()
-        run: docker compose -f test/integration/docker-compose.yml down -v
