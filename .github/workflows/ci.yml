@@ -53,7 +53,7 @@ jobs:
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
 
       - name: Build Windows executable
-        run: wails build -clean -webview2 embed
+        run: wails build -clean -webview2 embed -windowsconsole
 
       - name: Verify executable
         shell: pwsh
@@ -61,3 +61,10 @@ jobs:
           if (-not (Test-Path 'build/bin/go-script-sql-runner.exe')) {
             throw 'Expected build/bin/go-script-sql-runner.exe was not produced.'
           }
+
+      - name: Upload generated Wails bindings
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-wails-bindings
+          path: frontend/wailsjs
+          if-no-files-found: error

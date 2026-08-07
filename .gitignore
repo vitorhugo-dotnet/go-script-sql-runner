@@ -1,7 +1,8 @@
 # Build/dependencies
 build/bin/
 frontend/node_modules/
-frontend/dist/
+frontend/dist/*
+!frontend/dist/index.html
 
 # Local runtime/profile artifacts
 GoScriptSQLRunner/
