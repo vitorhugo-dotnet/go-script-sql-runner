@@ -9,22 +9,36 @@ import (
 	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/executor"
 	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/profile"
 	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/ui"
+	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/updatecheck"
 )
 
 type DesktopApp struct {
 	bridge *ui.Bridge
 
-	mu  sync.RWMutex
-	ctx context.Context
+	mu              sync.RWMutex
+	ctx             context.Context
+	currentBuildTag string
 }
 
 func NewDesktopApp(bridge *ui.Bridge) *DesktopApp {
-	return &DesktopApp{bridge: bridge}
+	return &DesktopApp{
+		bridge:          bridge,
+		currentBuildTag: "dev",
+	}
 }
 
 func (a *DesktopApp) Startup(ctx context.Context) {
 	a.mu.Lock()
 	a.ctx = ctx
+	a.mu.Unlock()
+}
+
+func (a *DesktopApp) SetCurrentBuildTag(tag string) {
+	if tag == "" {
+		tag = "dev"
+	}
+	a.mu.Lock()
+	a.currentBuildTag = tag
 	a.mu.Unlock()
 }
 
@@ -123,4 +137,17 @@ func (a *DesktopApp) ExportProfileToDialog(profileID string) (string, error) {
 	ctx, err := a.appContext()
 	if err != nil { return "", err }
 	return a.bridge.ExportProfileToDialog(ctx, profileID)
+}
+
+func (a *DesktopApp) CheckForUpdates() (updatecheck.Result, error) {
+	ctx, err := a.appContext()
+	if err != nil {
+		return updatecheck.Result{}, err
+	}
+
+	a.mu.RLock()
+	currentBuildTag := a.currentBuildTag
+	a.mu.RUnlock()
+
+	return updatecheck.New(currentBuildTag).Check(ctx)
 }
