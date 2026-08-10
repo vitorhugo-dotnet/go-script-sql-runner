@@ -18,3 +18,27 @@ input:disabled {
   cursor: not-allowed;
   opacity: 0.45;
 }
+
+.schema-options {
+  scrollbar-width: thin;
+  scrollbar-color: #475569 #020617;
+}
+
+.schema-options::-webkit-scrollbar {
+  width: 8px;
+}
+
+.schema-options::-webkit-scrollbar-track {
+  background: #020617;
+  border-radius: 9999px;
+}
+
+.schema-options::-webkit-scrollbar-thumb {
+  background: #475569;
+  border: 2px solid #020617;
+  border-radius: 9999px;
+}
+
+.schema-options::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
