@@ -56,6 +56,7 @@ func (s *Service) CreateProfile(_ context.Context, p profile.Profile) (profile.P
 	if p.Connection.Port == 0 {
 		p.Connection.Port = 3306
 	}
+	p.Connection.Database = ""
 	if p.Execution.OnError == "" {
 		p.Execution.OnError = profile.OnErrorContinue
 	}
