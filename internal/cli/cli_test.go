@@ -24,7 +24,7 @@ func executeTest(t *testing.T, service Service, args ...string) (int, string, st
 
 func TestProfileAndScriptCommandsUseRealStorage(t *testing.T) {
 	service := app.NewService(storage.NewRepository(t.TempDir()))
-	code, output, stderr := executeTest(t, service, "profile", "create", "--name", "Dev", "--host", "127.0.0.1", "--database", "demo", "--username", "root", "--password", "example")
+	code, output, stderr := executeTest(t, service, "profile", "create", "--name", "Dev", "--host", "127.0.0.1", "--username", "root", "--password", "example")
 	if code != 0 || stderr != "" {
 		t.Fatalf("create code=%d stderr=%q", code, stderr)
 	}
@@ -39,6 +39,13 @@ func TestProfileAndScriptCommandsUseRealStorage(t *testing.T) {
 	if code != 0 || !strings.Contains(list, profileID+"\tDev") {
 		t.Fatalf("list output=%q code=%d", list, code)
 	}
+	p, err := service.GetProfile(context.Background(), profileID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Connection.Database != "" {
+		t.Fatalf("profile database = %q, want runtime-only schema", p.Connection.Database)
+	}
 	_, shown, _ := executeTest(t, service, "profile", "show", profileID)
 	if strings.Contains(shown, "example") || !strings.Contains(shown, "***") {
 		t.Fatalf("profile show did not redact password: %q", shown)
@@ -52,7 +59,7 @@ func TestProfileAndScriptCommandsUseRealStorage(t *testing.T) {
 	if code != 0 || !strings.Contains(added, "Added script synthetic") {
 		t.Fatalf("script add output=%q code=%d", added, code)
 	}
-	p, err := service.GetProfile(context.Background(), profileID)
+	p, err = service.GetProfile(context.Background(), profileID)
 	if err != nil || len(p.Scripts) != 1 {
 		t.Fatalf("stored scripts=%#v err=%v", p.Scripts, err)
 	}
