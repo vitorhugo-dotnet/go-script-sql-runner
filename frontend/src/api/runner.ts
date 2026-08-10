@@ -29,6 +29,7 @@ interface DesktopBinding {
 
 interface WailsRuntime {
   EventsOn(eventName: string, callback: (payload?: unknown) => void): () => void
+  BrowserOpenURL(url: string): void
 }
 
 declare global {
