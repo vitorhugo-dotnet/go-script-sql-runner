@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { wailsRunnerApi } from './api/runner'
 import type { OnError, RunnerApi, TransactionMode } from './api/types'
 import ProfileDialog from './components/ProfileDialog'
+import SchemaSelect from './components/SchemaSelect'
 import { useRunnerController } from './state/useRunnerController'
 
 const buttonClass =
@@ -32,7 +33,7 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
   const profile = controller.selectedProfile
   const scripts = [...(profile?.scripts ?? [])].sort((left, right) => left.order - right.order)
   const connectionSummary = profile
-    ? `${profile.connection.host}:${profile.connection.port} / ${profile.connection.database}`
+    ? `${profile.connection.host}:${profile.connection.port}`
     : 'No connection configured'
 
   return (
@@ -92,7 +93,7 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
         </header>
 
         <section className="grid gap-2 border-b border-slate-800 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span className="truncate text-xs text-slate-400">{connectionSummary}</span>
             <span className="rounded-full border border-slate-700 bg-slate-900 px-2 py-0.5 text-[11px] text-slate-400">
               {controller.capabilities?.versionLabel ?? 'Disconnected'}
@@ -105,6 +106,17 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
             >
               Test Connection
             </button>
+            <SchemaSelect
+              schemas={controller.availableSchemas}
+              value={controller.selectedSchema}
+              onChange={controller.setSelectedSchema}
+              disabled={
+                !profile ||
+                !controller.capabilities ||
+                controller.availableSchemas.length === 0 ||
+                controller.running
+              }
+            />
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -138,7 +150,7 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
             <button
               className={`${buttonClass} border-sky-700 bg-sky-900/70 hover:bg-sky-800`}
               type="button"
-              disabled={!profile || controller.running}
+              disabled={!profile || !controller.selectedSchema || controller.running}
               onClick={() => void controller.run()}
             >
               Run

@@ -43,7 +43,7 @@ func createExportProfile(t *testing.T) (string, Profile) {
 	return profileDir, p
 }
 
-func TestExportArchiveIsSelfContainedAndDeterministic(t *testing.T) {
+func TestExportArchiveIsSelfContainedDeterministicAndDropsRuntimeSchema(t *testing.T) {
 	profileDir, wantProfile := createExportProfile(t)
 	first := filepath.Join(t.TempDir(), "first.zip")
 	second := filepath.Join(t.TempDir(), "second.zip")
@@ -90,8 +90,14 @@ func TestExportArchiveIsSelfContainedAndDeterministic(t *testing.T) {
 	}
 	got := inspection.Profile.Connection
 	want := wantProfile.Connection
-	if got.Host != want.Host || got.Port != want.Port || got.Database != want.Database || got.Username != want.Username || got.Password != want.Password {
-		t.Fatalf("connection changed during export: %#v", got)
+	if got.Host != want.Host || got.Port != want.Port || got.Username != want.Username || got.Password != want.Password {
+		t.Fatalf("connection credentials changed during export: %#v", got)
+	}
+	if got.Database != "" {
+		t.Fatalf("exported database = %q, want runtime-only schema omitted", got.Database)
+	}
+	if strings.Contains(contents["profile.yaml"], "database:") {
+		t.Fatalf("exported profile persisted runtime schema:\n%s", contents["profile.yaml"])
 	}
 	if contents["scripts/script-a.sql"] != "SELECT 'A';" || contents["scripts/script-b.sql"] != "SELECT 'B';" {
 		t.Fatalf("script contents changed: %#v", contents)

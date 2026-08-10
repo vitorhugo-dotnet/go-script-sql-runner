@@ -13,12 +13,14 @@ import (
 	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/storage"
 )
 
-type connectorFunc func(context.Context, profile.Connection) (*database.Client, error)
+type connectionTestFunc func(context.Context, profile.Connection) (database.ConnectionResult, error)
+type databaseConnectorFunc func(context.Context, profile.Connection, string) (*database.Client, error)
 
 type Service struct {
-	repository     *storage.Repository
-	connect        connectorFunc
-	persistentSink executor.Sink
+	repository      *storage.Repository
+	testConnection  connectionTestFunc
+	connectDatabase databaseConnectorFunc
+	persistentSink  executor.Sink
 }
 
 // NewService creates the shared application service. A persistent execution
@@ -29,7 +31,12 @@ func NewService(repository *storage.Repository, persistentSink ...executor.Sink)
 	if len(persistentSink) > 0 {
 		sink = persistentSink[0]
 	}
-	return &Service{repository: repository, connect: database.Connect, persistentSink: sink}
+	return &Service{
+		repository:      repository,
+		testConnection:  database.TestConnection,
+		connectDatabase: database.ConnectToDatabase,
+		persistentSink:  sink,
+	}
 }
 
 func (s *Service) CreateProfile(_ context.Context, p profile.Profile) (profile.Profile, error) {
@@ -49,6 +56,7 @@ func (s *Service) CreateProfile(_ context.Context, p profile.Profile) (profile.P
 	if p.Connection.Port == 0 {
 		p.Connection.Port = 3306
 	}
+	p.Connection.Database = ""
 	if p.Execution.OnError == "" {
 		p.Execution.OnError = profile.OnErrorContinue
 	}
@@ -120,17 +128,16 @@ func (s *Service) RemoveScript(_ context.Context, profileID, scriptID string) er
 	return nil
 }
 
-func (s *Service) TestConnection(ctx context.Context, profileID string) (database.ServerCapabilities, error) {
+func (s *Service) TestConnection(ctx context.Context, profileID string) (database.ConnectionResult, error) {
 	p, err := s.repository.Get(profileID)
 	if err != nil {
-		return database.ServerCapabilities{}, fmt.Errorf("get profile %q: %w", profileID, err)
+		return database.ConnectionResult{}, fmt.Errorf("get profile %q: %w", profileID, err)
 	}
-	client, err := s.connect(ctx, p.Connection)
+	result, err := s.testConnection(ctx, p.Connection)
 	if err != nil {
-		return database.ServerCapabilities{}, err
+		return database.ConnectionResult{}, err
 	}
-	defer client.Close()
-	return client.Capabilities, nil
+	return result, nil
 }
 
 func (s *Service) RunProfile(ctx context.Context, profileID string, opts executor.RunOptions, sink executor.Sink) (executor.Summary, error) {
@@ -138,7 +145,12 @@ func (s *Service) RunProfile(ctx context.Context, profileID string, opts executo
 	if err != nil {
 		return executor.Summary{}, fmt.Errorf("get profile %q: %w", profileID, err)
 	}
-	client, err := s.connect(ctx, p.Connection)
+	schema := strings.TrimSpace(opts.Schema)
+	if schema == "" {
+		return executor.Summary{}, fmt.Errorf("schema is required")
+	}
+	opts.Schema = schema
+	client, err := s.connectDatabase(ctx, p.Connection, schema)
 	if err != nil {
 		return executor.Summary{}, err
 	}

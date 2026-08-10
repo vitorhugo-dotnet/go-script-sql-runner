@@ -19,11 +19,20 @@ var exportRename = os.Rename
 
 // ExportArchive writes a self-contained profile archive. Connection credentials
 // intentionally remain in profile.yaml because exported profiles are designed
-// for controlled internal sharing.
+// for controlled internal sharing. The database/schema is runtime-only and is
+// stripped from the exported profile even when reading a legacy local profile.
 func ExportArchive(profileDir, destination string) error {
 	profileBytes, p, err := loadCanonicalProfile(profileDir)
 	if err != nil {
 		return err
+	}
+	if p.Connection.Database != "" {
+		p.Connection.Database = ""
+		var sanitized bytes.Buffer
+		if err := Encode(&sanitized, p); err != nil {
+			return fmt.Errorf("encode export profile: %w", err)
+		}
+		profileBytes = sanitized.Bytes()
 	}
 
 	scripts := append([]Script(nil), p.Scripts...)

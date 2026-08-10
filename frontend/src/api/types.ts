@@ -5,7 +5,7 @@ export type ExecutionLevel = 'INFO' | 'WARN' | 'ERROR'
 export interface Connection {
   host: string
   port: number
-  database: string
+  database?: string
   username: string
   password: string
 }
@@ -42,6 +42,11 @@ export interface ServerCapabilities {
   versionLabel: string
 }
 
+export interface ConnectionResult {
+  capabilities: ServerCapabilities
+  schemas: string[]
+}
+
 export interface ExecutionEvent {
   time: string
   level: ExecutionLevel
@@ -67,6 +72,7 @@ export interface RunSummary {
 }
 
 export interface RunOptions {
+  schema: string
   onError?: OnError | ''
   transactionMode?: TransactionMode | ''
 }
@@ -82,7 +88,7 @@ export interface RunnerApi {
   reorderScripts(profileID: string, orderedIDs: string[]): Promise<Profile>
   setScriptEnabled(profileID: string, scriptID: string, enabled: boolean): Promise<Profile>
   setScriptTransactionMode(profileID: string, scriptID: string, mode: TransactionMode | ''): Promise<Profile>
-  testConnection(profileID: string): Promise<ServerCapabilities>
+  testConnection(profileID: string): Promise<ConnectionResult>
   runProfile(profileID: string, options: RunOptions): Promise<RunSummary>
   stopRun(): Promise<boolean>
   importProfileFromDialog(): Promise<Profile | null>

@@ -10,6 +10,7 @@ import (
 
 func TestStageArchiveRoundTripFromExport(t *testing.T) {
 	profileDir, want := createExportProfile(t)
+	want.Connection.Database = ""
 	archivePath := filepath.Join(t.TempDir(), "profile.zip")
 	if err := ExportArchive(profileDir, archivePath); err != nil {
 		t.Fatalf("ExportArchive() error: %v", err)

@@ -17,6 +17,7 @@ func (s *Service) UpdateProfile(ctx context.Context, updated profile.Profile) (p
 	}
 	updated.ID = existing.ID
 	updated.Version = existing.Version
+	updated.Connection.Database = ""
 	updated.Scripts = append([]profile.Script(nil), existing.Scripts...)
 	if err := s.repository.Save(updated); err != nil {
 		return profile.Profile{}, fmt.Errorf("save updated profile %q: %w", existing.ID, err)

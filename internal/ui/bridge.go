@@ -39,7 +39,7 @@ type ServicePort interface {
 	ReorderScripts(context.Context, string, []string) (profile.Profile, error)
 	SetScriptEnabled(context.Context, string, string, bool) (profile.Profile, error)
 	SetScriptTransactionMode(context.Context, string, string, profile.TransactionMode) (profile.Profile, error)
-	TestConnection(context.Context, string) (database.ServerCapabilities, error)
+	TestConnection(context.Context, string) (database.ConnectionResult, error)
 	RunProfile(context.Context, string, executor.RunOptions, executor.Sink) (executor.Summary, error)
 	InspectProfileArchive(context.Context, string) (profile.ArchiveInspection, error)
 	ImportProfile(context.Context, string, bool) (profile.Profile, error)
@@ -138,7 +138,7 @@ func (b *Bridge) SetScriptTransactionMode(ctx context.Context, profileID, script
 	return b.service.SetScriptTransactionMode(ctx, profileID, scriptID, mode)
 }
 
-func (b *Bridge) TestConnection(ctx context.Context, profileID string) (database.ServerCapabilities, error) {
+func (b *Bridge) TestConnection(ctx context.Context, profileID string) (database.ConnectionResult, error) {
 	return b.service.TestConnection(ctx, profileID)
 }
 

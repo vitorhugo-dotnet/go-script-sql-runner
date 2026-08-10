@@ -11,13 +11,14 @@ func newConnectionCommand(ctx context.Context, service Service) *cobra.Command {
 	command := &cobra.Command{Use: "connection", Short: "Test database connections"}
 	command.AddCommand(&cobra.Command{
 		Use:   "test <profile-id>",
-		Short: "Connect and detect the MySQL server version",
+		Short: "Connect, detect the MySQL server version, and discover schemas",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			caps, err := service.TestConnection(ctx, args[0])
+			result, err := service.TestConnection(ctx, args[0])
 			if err != nil {
 				return err
 			}
+			caps := result.Capabilities
 			name := caps.VersionLabel
 			if caps.RawVersion != "" {
 				name = fmt.Sprintf("%s (%s)", caps.VersionLabel, caps.RawVersion)

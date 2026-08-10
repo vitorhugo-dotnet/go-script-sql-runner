@@ -11,7 +11,7 @@ const existing: Profile = {
   connection: {
     host: '127.0.0.1',
     port: 3306,
-    database: 'apollo',
+    database: 'legacy-apollo',
     username: 'root',
     password: 'secret',
   },
@@ -23,20 +23,20 @@ const existing: Profile = {
 }
 
 describe('ProfileDialog', () => {
-  it('renders the complete profile form with a masked password', () => {
+  it('renders connection credentials without a database/schema field', () => {
     render(<ProfileDialog open mode="edit" profile={existing} onCancel={() => undefined} onSave={vi.fn()} />)
 
     expect(screen.getByLabelText('Name')).toHaveValue('Local dev')
     expect(screen.getByLabelText('Host')).toHaveValue('127.0.0.1')
     expect(screen.getByLabelText('Port')).toHaveValue(3306)
-    expect(screen.getByLabelText('Database / Schema')).toHaveValue('apollo')
+    expect(screen.queryByLabelText('Database / Schema')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Username')).toHaveValue('root')
     expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password')
     expect(screen.getByLabelText('Default failure policy')).toHaveValue('continue')
     expect(screen.getByLabelText('Default transaction mode')).toHaveValue('auto_commit')
   })
 
-  it('submits one validated draft for a new profile', async () => {
+  it('submits a new profile without requiring a database/schema', async () => {
     const user = userEvent.setup()
     const onSave = vi.fn().mockResolvedValue(undefined)
 
@@ -46,7 +46,6 @@ describe('ProfileDialog', () => {
     await user.type(screen.getByLabelText('Host'), 'db.internal')
     await user.clear(screen.getByLabelText('Port'))
     await user.type(screen.getByLabelText('Port'), '3307')
-    await user.type(screen.getByLabelText('Database / Schema'), 'app')
     await user.type(screen.getByLabelText('Username'), 'runner')
     await user.type(screen.getByLabelText('Password'), 'topsecret')
     await user.selectOptions(screen.getByLabelText('Default failure policy'), 'stop')
@@ -60,7 +59,7 @@ describe('ProfileDialog', () => {
       connection: {
         host: 'db.internal',
         port: 3307,
-        database: 'app',
+        database: '',
         username: 'runner',
         password: 'topsecret',
       },

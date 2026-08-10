@@ -51,6 +51,8 @@ type Summary struct {
 }
 
 type RunOptions struct {
+	// Schema is the runtime database/schema selected for this execution.
+	Schema string `json:"schema"`
 	// OnError overrides the profile only when non-empty.
 	OnError profile.OnError `json:"onError,omitempty"`
 	// TransactionMode overrides the profile default only when non-empty.
