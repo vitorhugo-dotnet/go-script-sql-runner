@@ -18,6 +18,11 @@ type ServerCapabilities struct {
 	VersionLabel string `json:"versionLabel"`
 }
 
+type ConnectionResult struct {
+	Capabilities ServerCapabilities `json:"capabilities"`
+	Schemas      []string           `json:"schemas"`
+}
+
 type Client struct {
 	DB           *sql.DB
 	Capabilities ServerCapabilities
