@@ -97,9 +97,9 @@ func (a *DesktopApp) SetScriptTransactionMode(profileID, scriptID string, mode p
 	return a.bridge.SetScriptTransactionMode(ctx, profileID, scriptID, mode)
 }
 
-func (a *DesktopApp) TestConnection(profileID string) (database.ServerCapabilities, error) {
+func (a *DesktopApp) TestConnection(profileID string) (database.ConnectionResult, error) {
 	ctx, err := a.appContext()
-	if err != nil { return database.ServerCapabilities{}, err }
+	if err != nil { return database.ConnectionResult{}, err }
 	return a.bridge.TestConnection(ctx, profileID)
 }
 
