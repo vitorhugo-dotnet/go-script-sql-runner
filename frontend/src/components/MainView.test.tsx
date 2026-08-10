@@ -10,7 +10,7 @@ const profile = {
   connection: {
     host: '127.0.0.1',
     port: 3306,
-    database: 'apollo',
+    database: 'legacy-apollo',
     username: 'root',
     password: 'secret',
   },
@@ -38,6 +38,18 @@ const profile = {
   ],
 }
 
+const connectionResult = {
+  capabilities: {
+    vendor: 'mysql',
+    major: 8,
+    minor: 0,
+    patch: 39,
+    rawVersion: '8.0.39',
+    versionLabel: 'MySQL 8.0',
+  },
+  schemas: ['apollo', 'mysql', 'TestDB'],
+}
+
 function fakeApi() {
   let eventHandler: ((event: unknown) => void) | undefined
 
@@ -61,14 +73,7 @@ function fakeApi() {
       scripts: profile.scripts.map((script) => (script.id === scriptID ? { ...script, enabled } : script)),
     })),
     setScriptTransactionMode: vi.fn().mockResolvedValue(profile),
-    testConnection: vi.fn().mockResolvedValue({
-      vendor: 'mysql',
-      major: 8,
-      minor: 0,
-      patch: 39,
-      rawVersion: '8.0.39',
-      versionLabel: 'MySQL 8.0',
-    }),
+    testConnection: vi.fn().mockResolvedValue(connectionResult),
     runProfile: vi.fn().mockResolvedValue({ results: [], succeeded: 2, failed: 0, aborted: false }),
     stopRun: vi.fn().mockResolvedValue(true),
     importProfileFromDialog: vi.fn().mockResolvedValue(null),
@@ -98,31 +103,39 @@ describe('main runner workspace', () => {
     expect(screen.getByRole('button', { name: 'Add SQL' })).toBeInTheDocument()
     expect(screen.getByLabelText('On failure')).toBeInTheDocument()
     expect(screen.getByLabelText('Transaction')).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Schema' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Run' })).toBeInTheDocument()
     expect(screen.getByText('Logs')).toBeInTheDocument()
   })
 
-  it('loads the first profile and shows its safe connection summary', async () => {
+  it('loads the first profile and does not expose a persisted database in the connection summary', async () => {
     const api = fakeApi()
 
     render(<App api={api as never} />)
 
     expect(await screen.findByRole('option', { name: 'Local dev' })).toBeInTheDocument()
-    expect(screen.getByText('127.0.0.1:3306 / apollo')).toBeInTheDocument()
+    expect(screen.getByText('127.0.0.1:3306')).toBeInTheDocument()
+    expect(screen.queryByText('legacy-apollo')).not.toBeInTheDocument()
     expect(screen.queryByText('secret')).not.toBeInTheDocument()
     expect(api.listProfiles).toHaveBeenCalledOnce()
     expect(api.getProfile).toHaveBeenCalledWith('local-dev')
   })
 
-  it('tests the selected connection and shows the detected server version', async () => {
+  it('loads schemas after connection and does not auto-select one', async () => {
     const user = userEvent.setup()
     const api = fakeApi()
     render(<App api={api as never} />)
 
-    await screen.findByText('127.0.0.1:3306 / apollo')
+    await screen.findByText('127.0.0.1:3306')
+    const schema = screen.getByRole('combobox', { name: 'Schema' })
+    expect(schema).toBeDisabled()
+
     await user.click(screen.getByRole('button', { name: 'Test Connection' }))
 
     expect(await screen.findByText('MySQL 8.0')).toBeInTheDocument()
+    expect(schema).toBeEnabled()
+    expect(schema).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled()
     expect(api.testConnection).toHaveBeenCalledWith('local-dev')
   })
 
@@ -153,18 +166,23 @@ describe('main runner workspace', () => {
     expect(api.reorderScripts).toHaveBeenCalledWith('local-dev', ['seed', 'users'])
   })
 
-  it('sends run-only failure and transaction overrides without saving the profile', async () => {
+  it('sends selected runtime schema and run-only overrides without saving the profile', async () => {
     const user = userEvent.setup()
     const api = fakeApi()
     render(<App api={api as never} />)
 
     await screen.findByText('001-users.sql')
+    await user.click(screen.getByRole('button', { name: 'Test Connection' }))
+    const schema = screen.getByRole('combobox', { name: 'Schema' })
+    await user.click(schema)
+    await user.click(screen.getByRole('option', { name: 'apollo' }))
     await user.selectOptions(screen.getByLabelText('On failure'), 'stop')
     await user.selectOptions(screen.getByLabelText('Transaction'), 'transaction')
     await user.click(screen.getByRole('button', { name: 'Run' }))
 
     await waitFor(() =>
       expect(api.runProfile).toHaveBeenCalledWith('local-dev', {
+        schema: 'apollo',
         onError: 'stop',
         transactionMode: 'transaction',
       }),
@@ -185,6 +203,10 @@ describe('main runner workspace', () => {
 
     render(<App api={api as never} />)
     await screen.findByText('001-users.sql')
+    await user.click(screen.getByRole('button', { name: 'Test Connection' }))
+    const schema = screen.getByRole('combobox', { name: 'Schema' })
+    await user.click(schema)
+    await user.click(screen.getByRole('option', { name: 'apollo' }))
 
     const runButton = screen.getByRole('button', { name: 'Run' })
     await user.click(runButton)
