@@ -80,6 +80,16 @@ function fakeApi() {
     stopRun: vi.fn().mockResolvedValue(true),
     importProfileFromDialog: vi.fn().mockResolvedValue(null),
     exportProfileToDialog: vi.fn().mockResolvedValue('profile.zip'),
+    checkForUpdates: vi.fn().mockResolvedValue({
+      currentTag: 'dev',
+      latestTag: 'dev',
+      available: false,
+      releaseUrl: '',
+      downloadUrl: '',
+    }),
+    openExternalURL: vi.fn().mockImplementation((url: string) => {
+      window.runtime?.BrowserOpenURL(url)
+    }),
     onExecutionEvent: vi.fn().mockImplementation((handler: (event: unknown) => void) => {
       eventHandler = handler
       return () => {
