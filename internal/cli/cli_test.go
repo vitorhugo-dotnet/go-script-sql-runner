@@ -71,8 +71,11 @@ func (f *fakeService) ListProfiles(context.Context) ([]profile.Profile, error) {
 func (f *fakeService) GetProfile(context.Context, string) (profile.Profile, error) { return profile.Profile{}, nil }
 func (f *fakeService) AddScript(context.Context, string, string) (profile.Script, error) { return profile.Script{}, nil }
 func (f *fakeService) RemoveScript(context.Context, string, string) error { return nil }
-func (f *fakeService) TestConnection(context.Context, string) (database.ServerCapabilities, error) {
-	return database.ServerCapabilities{Vendor: database.VendorMySQL, Major: 8, RawVersion: "8.0.43", VersionLabel: "MySQL 8.x"}, nil
+func (f *fakeService) TestConnection(context.Context, string) (database.ConnectionResult, error) {
+	return database.ConnectionResult{
+		Capabilities: database.ServerCapabilities{Vendor: database.VendorMySQL, Major: 8, RawVersion: "8.0.43", VersionLabel: "MySQL 8.x"},
+		Schemas:      []string{"app", "mysql"},
+	}, nil
 }
 func (f *fakeService) RunProfile(_ context.Context, _ string, opts executor.RunOptions, sink executor.Sink) (executor.Summary, error) {
 	f.lastOptions = opts
@@ -91,18 +94,24 @@ func TestConnectionAndRunCommands(t *testing.T) {
 	if code != 0 || !strings.Contains(output, "MySQL 8.x (8.0.43)") {
 		t.Fatalf("connection output=%q code=%d", output, code)
 	}
-	code, output, _ = executeTest(t, service, "run", "profile", "--stop-on-error")
-	if code != 0 || service.lastOptions.OnError != profile.OnErrorStop || !strings.Contains(output, "✓ One") || !strings.Contains(output, "1 succeeded, 0 failed") {
+
+	code, _, stderr := executeTest(t, service, "run", "profile", "--stop-on-error")
+	if code == 0 || !strings.Contains(stderr, "schema") {
+		t.Fatalf("run without schema code=%d stderr=%q", code, stderr)
+	}
+
+	code, output, _ = executeTest(t, service, "run", "profile", "--schema", "app", "--stop-on-error")
+	if code != 0 || service.lastOptions.Schema != "app" || service.lastOptions.OnError != profile.OnErrorStop || !strings.Contains(output, "✓ One") || !strings.Contains(output, "1 succeeded, 0 failed") {
 		t.Fatalf("run output=%q code=%d opts=%#v", output, code, service.lastOptions)
 	}
-	code, output, _ = executeTest(t, service, "run", "profile", "--verbose", "--continue-on-error")
-	if code != 0 || service.lastOptions.OnError != profile.OnErrorContinue || !strings.Contains(output, "INFO") || !strings.Contains(output, "WARN") {
-		t.Fatalf("verbose output=%q code=%d", output, code)
+	code, output, _ = executeTest(t, service, "run", "profile", "--schema", "app", "--verbose", "--continue-on-error")
+	if code != 0 || service.lastOptions.Schema != "app" || service.lastOptions.OnError != profile.OnErrorContinue || !strings.Contains(output, "INFO") || !strings.Contains(output, "WARN") {
+		t.Fatalf("verbose output=%q code=%d opts=%#v", output, code, service.lastOptions)
 	}
 }
 
 func TestRunFlagsAreMutuallyExclusive(t *testing.T) {
-	code, _, stderr := executeTest(t, &fakeService{}, "run", "profile", "--stop-on-error", "--continue-on-error")
+	code, _, stderr := executeTest(t, &fakeService{}, "run", "profile", "--schema", "app", "--stop-on-error", "--continue-on-error")
 	if code == 0 || !strings.Contains(stderr, "stop-on-error") || !strings.Contains(stderr, "continue-on-error") {
 		t.Fatalf("code=%d stderr=%q", code, stderr)
 	}
