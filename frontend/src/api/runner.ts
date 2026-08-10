@@ -7,6 +7,7 @@ import type {
   RunnerApi,
   Script,
   TransactionMode,
+  UpdateInfo,
 } from './types'
 
 interface DesktopBinding {
@@ -25,6 +26,7 @@ interface DesktopBinding {
   StopRun(): Promise<boolean>
   ImportProfileFromDialog(): Promise<Profile | null>
   ExportProfileToDialog(profileID: string): Promise<string>
+  CheckForUpdates(): Promise<UpdateInfo>
 }
 
 interface WailsRuntime {
@@ -68,6 +70,14 @@ export const wailsRunnerApi: RunnerApi = {
   stopRun: () => desktop().StopRun(),
   importProfileFromDialog: () => desktop().ImportProfileFromDialog(),
   exportProfileToDialog: (profileID) => desktop().ExportProfileToDialog(profileID),
+  checkForUpdates: () => desktop().CheckForUpdates(),
+  openExternalURL: (url) => {
+    if (window.runtime?.BrowserOpenURL) {
+      window.runtime.BrowserOpenURL(url)
+      return
+    }
+    window.open(url, '_blank', 'noopener,noreferrer')
+  },
   onExecutionEvent: (handler) => {
     if (!window.runtime?.EventsOn) {
       return () => undefined
