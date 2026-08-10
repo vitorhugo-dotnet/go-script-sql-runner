@@ -54,12 +54,11 @@ export default function ProfileDialog({ open, mode, profile, onCancel, onSave }:
     event.preventDefault()
     const name = draft.name.trim()
     const host = draft.connection.host.trim()
-    const database = draft.connection.database.trim()
     const username = draft.connection.username.trim()
     const port = Number(draft.connection.port)
 
-    if (!name || !host || !database || !username) {
-      setError('Name, host, database and username are required.')
+    if (!name || !host || !username) {
+      setError('Name, host and username are required.')
       return
     }
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
@@ -74,7 +73,7 @@ export default function ProfileDialog({ open, mode, profile, onCancel, onSave }:
         ...draft.connection,
         host,
         port,
-        database,
+        database: '',
         username,
       },
     }
@@ -142,15 +141,6 @@ export default function ProfileDialog({ open, mode, profile, onCancel, onSave }:
               max={65535}
               value={draft.connection.port}
               onChange={(event) => updateConnection('port', Number(event.target.value))}
-            />
-          </label>
-
-          <label className="col-span-2 grid gap-1 text-xs text-slate-300">
-            Database / Schema
-            <input
-              className="rounded-md border border-slate-700 bg-slate-900 px-2.5 py-2 text-sm outline-none focus:ring-2 focus:ring-sky-500"
-              value={draft.connection.database}
-              onChange={(event) => updateConnection('database', event.target.value)}
             />
           </label>
 
