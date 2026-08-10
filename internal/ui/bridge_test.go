@@ -82,8 +82,11 @@ func (s *fakeService) RemoveScript(context.Context, string, string) error { retu
 func (s *fakeService) ReorderScripts(_ context.Context, id string, _ []string) (profile.Profile, error) { return s.GetProfile(context.Background(), id) }
 func (s *fakeService) SetScriptEnabled(_ context.Context, id, _ string, _ bool) (profile.Profile, error) { return s.GetProfile(context.Background(), id) }
 func (s *fakeService) SetScriptTransactionMode(_ context.Context, id, _ string, _ profile.TransactionMode) (profile.Profile, error) { return s.GetProfile(context.Background(), id) }
-func (s *fakeService) TestConnection(context.Context, string) (database.ServerCapabilities, error) {
-	return database.ServerCapabilities{Vendor: database.VendorMySQL, Major: 8, Minor: 0, Patch: 43, RawVersion: "8.0.43", VersionLabel: "MySQL 8.x"}, nil
+func (s *fakeService) TestConnection(context.Context, string) (database.ConnectionResult, error) {
+	return database.ConnectionResult{
+		Capabilities: database.ServerCapabilities{Vendor: database.VendorMySQL, Major: 8, Minor: 0, Patch: 43, RawVersion: "8.0.43", VersionLabel: "MySQL 8.x"},
+		Schemas:      []string{"apollo"},
+	}, nil
 }
 func (s *fakeService) RunProfile(ctx context.Context, _ string, _ executor.RunOptions, sink executor.Sink) (executor.Summary, error) {
 	if s.runStarted != nil {
