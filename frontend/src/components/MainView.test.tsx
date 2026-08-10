@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import App from '../App'
 
+const repositoryUrl = 'https://github.com/vitorhugo-dotnet/go-script-sql-runner'
+
 const profile = {
   id: 'local-dev',
   name: 'Local dev',
@@ -228,5 +230,32 @@ describe('main runner workspace', () => {
       finishRun?.({ results: [], succeeded: 2, failed: 0, aborted: false })
     })
     await waitFor(() => expect(runButton).not.toBeDisabled())
+  })
+
+  it('opens the repository footer link through the Wails browser runtime', async () => {
+    const user = userEvent.setup()
+    const BrowserOpenURL = vi.fn()
+    const api = fakeApi()
+
+    window.runtime = {
+      EventsOn: vi.fn().mockReturnValue(() => undefined),
+      BrowserOpenURL,
+    } as never
+
+    try {
+      render(<App api={api as never} />)
+      await screen.findByText('001-users.sql')
+
+      const repositoryLink = screen.getByRole('link', {
+        name: 'GitHub · vitorhugo-dotnet/go-script-sql-runner',
+      })
+      expect(repositoryLink).toHaveAttribute('href', repositoryUrl)
+
+      await user.click(repositoryLink)
+
+      expect(BrowserOpenURL).toHaveBeenCalledWith(repositoryUrl)
+    } finally {
+      window.runtime = undefined
+    }
   })
 })
