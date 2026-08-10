@@ -162,6 +162,31 @@ describe('SchemaSelect', () => {
     }
   })
 
+  it('keeps the popup vertical-only and truncates long schema names', async () => {
+    const user = userEvent.setup()
+    const longSchema = 'schema_with_a_name_that_is_far_wider_than_the_selector'
+
+    render(
+      <SchemaSelect
+        schemas={[longSchema]}
+        value={null}
+        onChange={() => undefined}
+        disabled={false}
+      />,
+    )
+
+    await user.click(screen.getByRole('combobox', { name: 'Schema' }))
+
+    const listbox = screen.getByRole('listbox')
+    expect(listbox).toHaveClass('schema-options')
+    expect(listbox).toHaveClass('overflow-x-hidden')
+    expect(listbox).toHaveClass('overflow-y-auto')
+
+    const option = screen.getByRole('option', { name: longSchema })
+    expect(option).toHaveClass('min-w-0', 'overflow-hidden')
+    expect(option.firstElementChild).toHaveClass('min-w-0', 'truncate')
+  })
+
   it('is disabled until schemas are available', () => {
     render(<SchemaSelect schemas={[]} value={null} onChange={() => undefined} disabled />)
 
