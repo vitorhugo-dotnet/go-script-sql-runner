@@ -4,10 +4,7 @@ import type { OnError, RunnerApi, TransactionMode, UpdateInfo } from './api/type
 import ProfileDialog from './components/ProfileDialog'
 import SchemaSelect from './components/SchemaSelect'
 import UpdateNotice from './components/UpdateNotice'
-import { openExternalUrl } from './platform/browser'
 import { useRunnerController } from './state/useRunnerController'
-
-const repositoryUrl = 'https://github.com/vitorhugo-dotnet/go-script-sql-runner'
 
 const buttonClass =
   'rounded-md border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-100 transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-45'
@@ -17,7 +14,6 @@ const selectClass =
 
 interface AppProps {
   api?: RunnerApi
-  openExternal?: (url: string) => void
 }
 
 function formatEventTime(value: string) {
@@ -31,7 +27,7 @@ function formatEventTime(value: string) {
   })
 }
 
-export default function App({ api = wailsRunnerApi, openExternal = openExternalUrl }: AppProps) {
+export default function App({ api = wailsRunnerApi }: AppProps) {
   const controller = useRunnerController(api)
   const [detailedLogs, setDetailedLogs] = useState(false)
   const [profileDialogMode, setProfileDialogMode] = useState<'create' | 'edit' | null>(null)
@@ -61,7 +57,7 @@ export default function App({ api = wailsRunnerApi, openExternal = openExternalU
 
   return (
     <>
-      <main className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)_132px_auto] bg-slate-950 text-slate-100">
+      <main className="grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)_132px] bg-slate-950 text-slate-100">
         <header className="flex items-center gap-2 border-b border-slate-800 px-3 py-2">
           <label className="text-xs font-medium text-slate-300" htmlFor="profile-select">
             Profile
@@ -323,19 +319,6 @@ export default function App({ api = wailsRunnerApi, openExternal = openExternalU
             ))}
           </div>
         </section>
-
-        <footer className="flex items-center border-t border-slate-900 px-3 py-1 text-[10px] text-slate-600">
-          <a
-            href={repositoryUrl}
-            className="rounded-sm transition hover:text-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-600"
-            onClick={(event) => {
-              event.preventDefault()
-              openExternal(repositoryUrl)
-            }}
-          >
-            GitHub · vitorhugo-dotnet/go-script-sql-runner
-          </a>
-        </footer>
       </main>
 
       <ProfileDialog
