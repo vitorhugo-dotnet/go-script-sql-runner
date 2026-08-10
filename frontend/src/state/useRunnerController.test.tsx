@@ -70,8 +70,10 @@ function fakeApi(overrides: Partial<RunnerApi> = {}) {
       currentTag: 'dev',
       latestTag: 'dev',
       available: false,
+      releaseUrl: '',
       downloadUrl: '',
     }),
+    openExternalURL: vi.fn(),
     onExecutionEvent: vi.fn().mockImplementation((handler: (event: ExecutionEvent) => void) => {
       executionHandler = handler
       return () => {
