@@ -66,6 +66,12 @@ function fakeApi(overrides: Partial<RunnerApi> = {}) {
     stopRun: vi.fn().mockResolvedValue(true),
     importProfileFromDialog: vi.fn().mockResolvedValue(null),
     exportProfileToDialog: vi.fn().mockResolvedValue(''),
+    checkForUpdates: vi.fn().mockResolvedValue({
+      currentTag: 'dev',
+      latestTag: 'dev',
+      available: false,
+      downloadUrl: '',
+    }),
     onExecutionEvent: vi.fn().mockImplementation((handler: (event: ExecutionEvent) => void) => {
       executionHandler = handler
       return () => {
