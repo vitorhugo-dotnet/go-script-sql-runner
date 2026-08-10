@@ -10,7 +10,7 @@ const firstProfile: Profile = {
   connection: {
     host: '127.0.0.1',
     port: 3306,
-    database: 'example',
+    database: 'legacy',
     username: 'dev',
     password: 'dev',
   },
@@ -31,6 +31,18 @@ const secondProfile: Profile = {
   },
 }
 
+const connectionResult = {
+  capabilities: {
+    vendor: 'mysql',
+    major: 8,
+    minor: 0,
+    patch: 39,
+    rawVersion: '8.0.39',
+    versionLabel: 'MySQL 8.0',
+  },
+  schemas: ['apollo', 'mysql', 'TestDB'],
+}
+
 function fakeApi(overrides: Partial<RunnerApi> = {}) {
   let executionHandler: ((event: ExecutionEvent) => void) | undefined
   const profiles = new Map([
@@ -49,14 +61,7 @@ function fakeApi(overrides: Partial<RunnerApi> = {}) {
     reorderScripts: vi.fn().mockResolvedValue(firstProfile),
     setScriptEnabled: vi.fn().mockResolvedValue(firstProfile),
     setScriptTransactionMode: vi.fn().mockResolvedValue(firstProfile),
-    testConnection: vi.fn().mockResolvedValue({
-      vendor: 'mysql',
-      major: 8,
-      minor: 0,
-      patch: 39,
-      rawVersion: '8.0.39',
-      versionLabel: 'MySQL 8.0',
-    }),
+    testConnection: vi.fn().mockResolvedValue(connectionResult),
     runProfile: vi.fn().mockResolvedValue({ results: [], succeeded: 0, failed: 0, aborted: false }),
     stopRun: vi.fn().mockResolvedValue(true),
     importProfileFromDialog: vi.fn().mockResolvedValue(null),
@@ -77,13 +82,16 @@ function fakeApi(overrides: Partial<RunnerApi> = {}) {
 }
 
 describe('useRunnerController', () => {
-  it('selects the first profile initially and loads another profile on selection', async () => {
+  it('selects the first profile initially and clears runtime schema state on profile selection', async () => {
     const api = fakeApi()
     const { result } = renderHook(() => useRunnerController(api))
 
     await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
-    expect(result.current.runOnError).toBe('continue')
-    expect(result.current.runTransactionMode).toBe('auto_commit')
+    await act(async () => {
+      await result.current.testConnection()
+    })
+    act(() => result.current.setSelectedSchema('apollo'))
+    expect(result.current.selectedSchema).toBe('apollo')
 
     await act(async () => {
       await result.current.selectProfile('second')
@@ -92,10 +100,13 @@ describe('useRunnerController', () => {
     expect(result.current.selectedProfile?.id).toBe('second')
     expect(result.current.runOnError).toBe('stop')
     expect(result.current.runTransactionMode).toBe('transaction')
+    expect(result.current.capabilities).toBeNull()
+    expect(result.current.availableSchemas).toEqual([])
+    expect(result.current.selectedSchema).toBeNull()
     expect(api.getProfile).toHaveBeenCalledWith('second')
   })
 
-  it('stores detected connection capabilities', async () => {
+  it('stores capabilities and visible schemas without auto-selecting a schema', async () => {
     const api = fakeApi()
     const { result } = renderHook(() => useRunnerController(api))
 
@@ -105,6 +116,32 @@ describe('useRunnerController', () => {
     })
 
     expect(result.current.capabilities?.versionLabel).toBe('MySQL 8.0')
+    expect(result.current.availableSchemas).toEqual(['apollo', 'mysql', 'TestDB'])
+    expect(result.current.selectedSchema).toBeNull()
+  })
+
+  it('clears schema state when connection testing fails', async () => {
+    const testConnection = vi
+      .fn()
+      .mockResolvedValueOnce(connectionResult)
+      .mockRejectedValueOnce(new Error('connection failed'))
+    const api = fakeApi({ testConnection })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
+    await act(async () => {
+      await result.current.testConnection()
+    })
+    act(() => result.current.setSelectedSchema('apollo'))
+
+    await act(async () => {
+      await result.current.testConnection()
+    })
+
+    expect(result.current.capabilities).toBeNull()
+    expect(result.current.availableSchemas).toEqual([])
+    expect(result.current.selectedSchema).toBeNull()
+    expect(result.current.error).toBe('connection failed')
   })
 
   it('keeps only the newest 1000 execution events', async () => {
@@ -128,7 +165,22 @@ describe('useRunnerController', () => {
     expect(result.current.logs[999].message).toBe('event-1004')
   })
 
-  it('resets running after failure and sends run-only overrides without saving the profile', async () => {
+  it('requires a selected schema before running', async () => {
+    const runProfile = vi.fn()
+    const api = fakeApi({ runProfile })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
+    await act(async () => {
+      await result.current.testConnection()
+      await result.current.run()
+    })
+
+    expect(runProfile).not.toHaveBeenCalled()
+    expect(result.current.error).toContain('schema')
+  })
+
+  it('resets running after failure and sends runtime schema plus run-only overrides without saving the profile', async () => {
     let rejectRun: ((reason?: unknown) => void) | undefined
     const runProfile = vi.fn().mockImplementation(
       () =>
@@ -141,8 +193,11 @@ describe('useRunnerController', () => {
     const { result } = renderHook(() => useRunnerController(api))
 
     await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
-
+    await act(async () => {
+      await result.current.testConnection()
+    })
     act(() => {
+      result.current.setSelectedSchema('apollo')
       result.current.setRunOnError('stop')
       result.current.setRunTransactionMode('transaction')
     })
@@ -161,13 +216,14 @@ describe('useRunnerController', () => {
     expect(result.current.running).toBe(false)
     expect(result.current.error).toBe('synthetic failure')
     expect(runProfile).toHaveBeenCalledWith('first', {
+      schema: 'apollo',
       onError: 'stop',
       transactionMode: 'transaction',
     })
     expect(updateProfile).not.toHaveBeenCalled()
   })
 
-  it('refreshes profiles and selects the imported profile', async () => {
+  it('refreshes profiles and selects the imported profile with no runtime schema selected', async () => {
     const imported: Profile = { ...firstProfile, id: 'imported', name: 'Imported' }
     const listProfiles = vi
       .fn()
@@ -188,5 +244,6 @@ describe('useRunnerController', () => {
 
     expect(result.current.profiles.map((profile) => profile.id)).toEqual(['first', 'imported'])
     expect(result.current.selectedProfile?.id).toBe('imported')
+    expect(result.current.selectedSchema).toBeNull()
   })
 })
