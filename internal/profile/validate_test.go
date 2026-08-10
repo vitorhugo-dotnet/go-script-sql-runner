@@ -20,6 +20,14 @@ func TestValidateAcceptsValidProfile(t *testing.T) {
 	}
 }
 
+func TestValidateAcceptsProfileWithoutDatabase(t *testing.T) {
+	p := validProfile()
+	p.Connection.Database = ""
+	if err := Validate(p); err != nil {
+		t.Fatalf("Validate() with runtime-only schema returned error: %v", err)
+	}
+}
+
 func TestValidateRejectsCoreInvalidValues(t *testing.T) {
 	tests := []struct {
 		name   string
