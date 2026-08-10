@@ -34,7 +34,10 @@ export default function SchemaSelect({ schemas, value, onChange, disabled }: Sch
 
   useEffect(() => {
     if (!open || activeIndex === null) return
-    activeOptionRef.current?.scrollIntoView({ block: 'nearest' })
+    const activeOption = activeOptionRef.current
+    if (activeOption && typeof activeOption.scrollIntoView === 'function') {
+      activeOption.scrollIntoView({ block: 'nearest' })
+    }
   }, [activeIndex, filtered, open])
 
   const select = (schema: string) => {
