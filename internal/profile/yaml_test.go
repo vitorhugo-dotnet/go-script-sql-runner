@@ -23,6 +23,19 @@ func TestYAMLRoundTrip(t *testing.T) {
 	}
 }
 
+func TestEncodeOmitsEmptyLegacyDatabaseField(t *testing.T) {
+	p := validProfile()
+	p.Connection.Database = ""
+
+	var buf bytes.Buffer
+	if err := Encode(&buf, p); err != nil {
+		t.Fatalf("Encode() error: %v", err)
+	}
+	if strings.Contains(buf.String(), "database:") {
+		t.Fatalf("runtime schema leaked into persistent profile YAML:\n%s", buf.String())
+	}
+}
+
 func TestDecodeRejectsUnknownFields(t *testing.T) {
 	_, err := Decode(strings.NewReader("name: x\nunknown: true\n"))
 	if err == nil {
