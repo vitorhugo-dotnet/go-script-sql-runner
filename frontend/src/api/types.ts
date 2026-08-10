@@ -77,6 +77,14 @@ export interface RunOptions {
   transactionMode?: TransactionMode | ''
 }
 
+export interface UpdateInfo {
+  currentTag: string
+  latestTag: string
+  available: boolean
+  releaseUrl: string
+  downloadUrl: string
+}
+
 export interface RunnerApi {
   listProfiles(): Promise<Profile[]>
   getProfile(profileID: string): Promise<Profile>
@@ -93,5 +101,7 @@ export interface RunnerApi {
   stopRun(): Promise<boolean>
   importProfileFromDialog(): Promise<Profile | null>
   exportProfileToDialog(profileID: string): Promise<string>
+  checkForUpdates(): Promise<UpdateInfo>
+  openExternalURL(url: string): void
   onExecutionEvent(handler: (event: ExecutionEvent) => void): () => void
 }

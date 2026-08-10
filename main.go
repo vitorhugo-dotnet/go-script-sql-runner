@@ -18,6 +18,8 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+var currentBuildTag = "dev"
+
 func main() {
 	os.Exit(run())
 }
@@ -43,6 +45,7 @@ func run() int {
 	events := wailsui.EventAdapter{}
 	bridge := ui.NewBridge(runtime.Service, dialogs, events)
 	desktop := wailsui.NewDesktopApp(bridge)
+	desktop.SetCurrentBuildTag(currentBuildTag)
 
 	err = wails.Run(&options.App{
 		Title:         "Go Script SQL Runner",

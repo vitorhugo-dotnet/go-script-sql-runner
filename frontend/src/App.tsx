@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { wailsRunnerApi } from './api/runner'
-import type { OnError, RunnerApi, TransactionMode } from './api/types'
+import type { OnError, RunnerApi, TransactionMode, UpdateInfo } from './api/types'
 import ProfileDialog from './components/ProfileDialog'
 import SchemaSelect from './components/SchemaSelect'
+import UpdateNotice from './components/UpdateNotice'
 import { useRunnerController } from './state/useRunnerController'
 
 const buttonClass =
@@ -30,11 +31,29 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
   const controller = useRunnerController(api)
   const [detailedLogs, setDetailedLogs] = useState(false)
   const [profileDialogMode, setProfileDialogMode] = useState<'create' | 'edit' | null>(null)
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const profile = controller.selectedProfile
   const scripts = [...(profile?.scripts ?? [])].sort((left, right) => left.order - right.order)
   const connectionSummary = profile
     ? `${profile.connection.host}:${profile.connection.port}`
     : 'No connection configured'
+
+  useEffect(() => {
+    let cancelled = false
+
+    void (async () => {
+      try {
+        const info = await api.checkForUpdates()
+        if (!cancelled) setUpdateInfo(info)
+      } catch {
+        // Update checks are best-effort and must never block the runner UI.
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [api])
 
   return (
     <>
@@ -74,6 +93,7 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
             Edit
           </button>
           <div className="flex-1" />
+          <UpdateNotice info={updateInfo} onOpen={api.openExternalURL} />
           <button
             className={buttonClass}
             type="button"
