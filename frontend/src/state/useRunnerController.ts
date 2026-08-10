@@ -18,6 +18,8 @@ export function useRunnerController(api: RunnerApi) {
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [selectedProfile, setSelectedProfile] = useState<Profile | null>(null)
   const [capabilities, setCapabilities] = useState<ServerCapabilities | null>(null)
+  const [availableSchemas, setAvailableSchemas] = useState<string[]>([])
+  const [selectedSchema, setSelectedSchema] = useState<string | null>(null)
   const [logs, setLogs] = useState<ExecutionEvent[]>([])
   const [runOnError, setRunOnError] = useState<OnError>('continue')
   const [runTransactionMode, setRunTransactionMode] = useState<TransactionMode>('auto_commit')
@@ -25,14 +27,23 @@ export function useRunnerController(api: RunnerApi) {
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const applySelectedProfile = useCallback((profile: Profile | null) => {
-    setSelectedProfile(profile)
+  const clearConnectionState = useCallback(() => {
     setCapabilities(null)
-    if (profile) {
-      setRunOnError(profile.execution.onError)
-      setRunTransactionMode(profile.execution.transactionMode)
-    }
+    setAvailableSchemas([])
+    setSelectedSchema(null)
   }, [])
+
+  const applySelectedProfile = useCallback(
+    (profile: Profile | null) => {
+      setSelectedProfile(profile)
+      clearConnectionState()
+      if (profile) {
+        setRunOnError(profile.execution.onError)
+        setRunTransactionMode(profile.execution.transactionMode)
+      }
+    },
+    [clearConnectionState],
+  )
 
   const selectProfile = useCallback(
     async (profileID: string) => {
@@ -105,13 +116,15 @@ export function useRunnerController(api: RunnerApi) {
     if (!selectedProfile) return
     try {
       setError(null)
-      const detected = await api.testConnection(selectedProfile.id)
-      setCapabilities(detected)
+      clearConnectionState()
+      const result = await api.testConnection(selectedProfile.id)
+      setCapabilities(result.capabilities)
+      setAvailableSchemas(result.schemas)
     } catch (cause) {
-      setCapabilities(null)
+      clearConnectionState()
       setError(errorMessage(cause))
     }
-  }, [api, selectedProfile])
+  }, [api, clearConnectionState, selectedProfile])
 
   const addSQLFiles = useCallback(async () => {
     if (!selectedProfile) return
@@ -198,10 +211,15 @@ export function useRunnerController(api: RunnerApi) {
 
   const run = useCallback(async () => {
     if (!selectedProfile || running) return
+    if (!selectedSchema) {
+      setError('Select a schema before running.')
+      return
+    }
     try {
       setRunning(true)
       setError(null)
       await api.runProfile(selectedProfile.id, {
+        schema: selectedSchema,
         onError: runOnError,
         transactionMode: runTransactionMode,
       })
@@ -210,7 +228,7 @@ export function useRunnerController(api: RunnerApi) {
     } finally {
       setRunning(false)
     }
-  }, [api, runOnError, runTransactionMode, running, selectedProfile])
+  }, [api, runOnError, runTransactionMode, running, selectedProfile, selectedSchema])
 
   const stopRun = useCallback(async () => {
     try {
@@ -263,6 +281,8 @@ export function useRunnerController(api: RunnerApi) {
     profiles,
     selectedProfile,
     capabilities,
+    availableSchemas,
+    selectedSchema,
     logs,
     runOnError,
     runTransactionMode,
@@ -272,6 +292,7 @@ export function useRunnerController(api: RunnerApi) {
     loadProfiles,
     selectProfile,
     saveProfile,
+    setSelectedSchema,
     setRunOnError,
     setRunTransactionMode,
     testConnection,
