@@ -121,7 +121,7 @@ export default function SchemaSelect({ schemas, value, onChange, disabled }: Sch
         <div
           id={listboxId}
           role="listbox"
-          className="absolute left-0 top-full z-40 mt-1 max-h-48 w-full min-w-48 overflow-auto rounded-md border border-slate-700 bg-slate-950 p-1 shadow-xl"
+          className="schema-options absolute left-0 top-full z-40 mt-1 max-h-48 w-full min-w-48 overflow-x-hidden overflow-y-auto rounded-md border border-slate-700 bg-slate-950 p-1 shadow-xl"
         >
           {filtered.length === 0 ? (
             <div className="px-2 py-1.5 text-xs text-slate-500">No schemas found</div>
@@ -136,7 +136,7 @@ export default function SchemaSelect({ schemas, value, onChange, disabled }: Sch
                   type="button"
                   role="option"
                   aria-selected={schema === value}
-                  className={`block w-full rounded px-2 py-1.5 text-left text-xs focus:outline-none ${
+                  className={`block min-w-0 w-full overflow-hidden rounded px-2 py-1.5 text-left text-xs focus:outline-none ${
                     active
                       ? 'bg-slate-800 text-slate-50'
                       : 'text-slate-200 hover:bg-slate-800 focus:bg-slate-800'
@@ -144,7 +144,7 @@ export default function SchemaSelect({ schemas, value, onChange, disabled }: Sch
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => select(schema)}
                 >
-                  {schema}
+                  <span className="block min-w-0 truncate">{schema}</span>
                 </button>
               )
             })
