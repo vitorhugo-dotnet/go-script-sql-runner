@@ -13,12 +13,13 @@ import (
 
 func newRunCommand(ctx context.Context, service Service, stdout io.Writer, state *executionState) *cobra.Command {
 	var verbose, stopOnError, continueOnError bool
+	var schema string
 	command := &cobra.Command{
 		Use:   "run <profile-id>",
 		Short: "Execute an ordered SQL profile",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
-			opts := executor.RunOptions{}
+			opts := executor.RunOptions{Schema: strings.TrimSpace(schema)}
 			if stopOnError {
 				opts.OnError = profile.OnErrorStop
 			} else if continueOnError {
@@ -61,6 +62,8 @@ func newRunCommand(ctx context.Context, service Service, stdout io.Writer, state
 			return nil
 		},
 	}
+	command.Flags().StringVar(&schema, "schema", "", "database/schema to execute against")
+	_ = command.MarkFlagRequired("schema")
 	command.Flags().BoolVarP(&verbose, "verbose", "v", false, "show detailed execution logs")
 	command.Flags().BoolVar(&stopOnError, "stop-on-error", false, "stop after the first failed script")
 	command.Flags().BoolVar(&continueOnError, "continue-on-error", false, "continue after failed scripts")
