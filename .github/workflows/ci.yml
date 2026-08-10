@@ -87,7 +87,7 @@ jobs:
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
 
       - name: Build executable
-        run: wails build -clean -webview2 embed -windowsconsole
+        run: wails build -clean -webview2 embed -windowsconsole -ldflags "-X main.currentBuildTag=build-${{ github.run_number }}"
 
       - name: Verify executable
         shell: pwsh
