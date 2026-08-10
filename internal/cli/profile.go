@@ -40,7 +40,7 @@ func newProfileListCommand(ctx context.Context, service Service) *cobra.Command 
 }
 
 func newProfileCreateCommand(ctx context.Context, service Service) *cobra.Command {
-	var name, host, databaseName, username, password string
+	var name, host, username, password string
 	var port int
 	var onError, transaction string
 	command := &cobra.Command{
@@ -49,7 +49,7 @@ func newProfileCreateCommand(ctx context.Context, service Service) *cobra.Comman
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			created, err := service.CreateProfile(ctx, profile.Profile{
 				Name: name,
-				Connection: profile.Connection{Host: host, Port: port, Database: databaseName, Username: username, Password: password},
+				Connection: profile.Connection{Host: host, Port: port, Username: username, Password: password},
 				Execution: profile.Execution{OnError: profile.OnError(onError), TransactionMode: profile.TransactionMode(transaction)},
 			})
 			if err != nil {
@@ -63,14 +63,12 @@ func newProfileCreateCommand(ctx context.Context, service Service) *cobra.Comman
 	flags.StringVar(&name, "name", "", "profile name")
 	flags.StringVar(&host, "host", "", "MySQL host")
 	flags.IntVar(&port, "port", 3306, "MySQL port")
-	flags.StringVar(&databaseName, "database", "", "database/schema")
 	flags.StringVar(&username, "username", "", "database username")
 	flags.StringVar(&password, "password", "", "database password")
 	flags.StringVar(&onError, "on-error", string(profile.OnErrorContinue), "failure policy: continue or stop")
 	flags.StringVar(&transaction, "transaction-mode", string(profile.TransactionAutoCommit), "transaction mode: auto_commit, transaction, or script_managed")
 	_ = command.MarkFlagRequired("name")
 	_ = command.MarkFlagRequired("host")
-	_ = command.MarkFlagRequired("database")
 	_ = command.MarkFlagRequired("username")
 	return command
 }
