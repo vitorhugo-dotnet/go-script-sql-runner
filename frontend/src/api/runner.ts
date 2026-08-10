@@ -1,11 +1,11 @@
 import type {
+  ConnectionResult,
   ExecutionEvent,
   Profile,
   RunOptions,
   RunSummary,
   RunnerApi,
   Script,
-  ServerCapabilities,
   TransactionMode,
 } from './types'
 
@@ -20,7 +20,7 @@ interface DesktopBinding {
   ReorderScripts(profileID: string, orderedIDs: string[]): Promise<Profile>
   SetScriptEnabled(profileID: string, scriptID: string, enabled: boolean): Promise<Profile>
   SetScriptTransactionMode(profileID: string, scriptID: string, mode: TransactionMode | ''): Promise<Profile>
-  TestConnection(profileID: string): Promise<ServerCapabilities>
+  TestConnection(profileID: string): Promise<ConnectionResult>
   RunProfile(profileID: string, options: RunOptions): Promise<RunSummary>
   StopRun(): Promise<boolean>
   ImportProfileFromDialog(): Promise<Profile | null>
