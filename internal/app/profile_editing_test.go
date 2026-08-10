@@ -34,11 +34,12 @@ func editingService(t *testing.T) (*Service, profile.Profile) {
 	return NewService(repo), stored
 }
 
-func TestUpdateProfilePreservesStoredIdentityAndScripts(t *testing.T) {
+func TestUpdateProfilePreservesStoredIdentityAndScriptsAndDropsLegacyDatabase(t *testing.T) {
 	service, before := editingService(t)
 	updated := before
 	updated.Name = "After"
 	updated.Connection.Host = "db.synthetic.internal"
+	updated.Connection.Database = "must-not-persist"
 	updated.Connection.Password = "new-password"
 	updated.Execution.OnError = profile.OnErrorStop
 	updated.Scripts = nil
@@ -50,6 +51,9 @@ func TestUpdateProfilePreservesStoredIdentityAndScripts(t *testing.T) {
 	}
 	if got.ID != before.ID || got.Version != before.Version || got.Name != "After" || got.Connection.Password != "new-password" || got.Execution.OnError != profile.OnErrorStop {
 		t.Fatalf("unexpected updated profile: %#v", got)
+	}
+	if got.Connection.Database != "" {
+		t.Fatalf("updated database = %q, want runtime-only schema", got.Connection.Database)
 	}
 	if len(got.Scripts) != len(before.Scripts) {
 		t.Fatalf("scripts were replaced: %#v", got.Scripts)
