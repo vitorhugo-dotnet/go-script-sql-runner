@@ -28,9 +28,6 @@ func Validate(p Profile) error {
 	if p.Connection.Port < 1 || p.Connection.Port > 65535 {
 		errs = append(errs, errors.New("connection port must be between 1 and 65535"))
 	}
-	if strings.TrimSpace(p.Connection.Database) == "" {
-		errs = append(errs, errors.New("connection database is required"))
-	}
 	if strings.TrimSpace(p.Connection.Username) == "" {
 		errs = append(errs, errors.New("connection username is required"))
 	}
