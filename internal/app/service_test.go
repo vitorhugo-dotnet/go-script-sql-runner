@@ -13,12 +13,12 @@ import (
 	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/storage"
 )
 
-func TestCreateProfileAppliesDefaults(t *testing.T) {
+func TestCreateProfileAppliesDefaultsAndDropsLegacyDatabaseTarget(t *testing.T) {
 	repo := storage.NewRepository(t.TempDir())
 	service := NewService(repo)
 	created, err := service.CreateProfile(context.Background(), profile.Profile{
 		Name: "Dev",
-		Connection: profile.Connection{Host: "127.0.0.1", Username: "root"},
+		Connection: profile.Connection{Host: "127.0.0.1", Database: "must-not-persist", Username: "root"},
 	})
 	if err != nil {
 		t.Fatalf("CreateProfile() error: %v", err)
@@ -35,6 +35,9 @@ func TestCreateProfileAppliesDefaults(t *testing.T) {
 	stored, err := repo.Get(created.ID)
 	if err != nil || stored.ID != created.ID {
 		t.Fatalf("profile not persisted: %#v, %v", stored, err)
+	}
+	if stored.Connection.Database != "" {
+		t.Fatalf("stored database = %q, want blank runtime target", stored.Connection.Database)
 	}
 }
 
@@ -123,20 +126,26 @@ func TestRunProfileRejectsMissingRuntimeSchemaBeforeConnecting(t *testing.T) {
 
 func TestRunProfileUsesExplicitRuntimeSchemaInsteadOfLegacyProfileDatabase(t *testing.T) {
 	repo := storage.NewRepository(t.TempDir())
-	service := NewService(repo)
-	p, err := service.CreateProfile(context.Background(), profile.Profile{
-		Name: "Dev",
-		Connection: profile.Connection{Host: "db.example", Database: "legacy", Username: "root"},
-	})
-	if err != nil {
+	legacy := profile.Profile{
+		ID:      "legacy",
+		Name:    "Legacy",
+		Version: 1,
+		Connection: profile.Connection{Host: "db.example", Port: 3306, Database: "legacy_db", Username: "root"},
+		Execution: profile.Execution{OnError: profile.OnErrorContinue, TransactionMode: profile.TransactionAutoCommit},
+	}
+	if err := repo.Save(legacy); err != nil {
 		t.Fatal(err)
 	}
+	service := NewService(repo)
 	var gotSchema string
-	service.connectDatabase = func(_ context.Context, _ profile.Connection, schema string) (*database.Client, error) {
+	service.connectDatabase = func(_ context.Context, connection profile.Connection, schema string) (*database.Client, error) {
+		if connection.Database != "legacy_db" {
+			t.Fatalf("legacy profile unexpectedly rewritten during load: %#v", connection)
+		}
 		gotSchema = schema
 		return &database.Client{}, nil
 	}
-	_, err = service.RunProfile(context.Background(), p.ID, executor.RunOptions{Schema: " runtime_db "}, nil)
+	_, err := service.RunProfile(context.Background(), legacy.ID, executor.RunOptions{Schema: " runtime_db "}, nil)
 	if err != nil {
 		t.Fatalf("RunProfile() error: %v", err)
 	}
