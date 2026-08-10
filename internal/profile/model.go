@@ -18,7 +18,7 @@ const (
 type Connection struct {
 	Host     string `yaml:"host" json:"host"`
 	Port     int    `yaml:"port" json:"port"`
-	Database string `yaml:"database" json:"database"`
+	Database string `yaml:"database,omitempty" json:"database,omitempty"`
 	Username string `yaml:"username" json:"username"`
 	Password string `yaml:"password" json:"password"`
 }
