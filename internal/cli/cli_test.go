@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -71,31 +72,54 @@ func TestProfileAndScriptCommandsUseRealStorage(t *testing.T) {
 
 type fakeService struct {
 	lastOptions executor.RunOptions
+	connected   bool
 }
 
-func (f *fakeService) CreateProfile(context.Context, profile.Profile) (profile.Profile, error) { return profile.Profile{}, nil }
+func (f *fakeService) CreateProfile(context.Context, profile.Profile) (profile.Profile, error) {
+	return profile.Profile{}, nil
+}
 func (f *fakeService) ListProfiles(context.Context) ([]profile.Profile, error) { return nil, nil }
-func (f *fakeService) GetProfile(context.Context, string) (profile.Profile, error) { return profile.Profile{}, nil }
-func (f *fakeService) AddScript(context.Context, string, string) (profile.Script, error) { return profile.Script{}, nil }
+func (f *fakeService) GetProfile(context.Context, string) (profile.Profile, error) {
+	return profile.Profile{}, nil
+}
+func (f *fakeService) AddScript(context.Context, string, string) (profile.Script, error) {
+	return profile.Script{}, nil
+}
 func (f *fakeService) RemoveScript(context.Context, string, string) error { return nil }
-func (f *fakeService) TestConnection(context.Context, string) (database.ConnectionResult, error) {
+func (f *fakeService) Connect(context.Context, string) (database.ConnectionResult, error) {
+	f.connected = true
 	return database.ConnectionResult{
 		Capabilities: database.ServerCapabilities{Vendor: database.VendorMySQL, Major: 8, RawVersion: "8.0.43", VersionLabel: "MySQL 8.x"},
 		Schemas:      []string{"app", "mysql"},
 	}, nil
 }
 func (f *fakeService) RunProfile(_ context.Context, _ string, opts executor.RunOptions, sink executor.Sink) (executor.Summary, error) {
+	if !f.connected {
+		return executor.Summary{}, errors.New("profile is not connected")
+	}
 	f.lastOptions = opts
 	sink.Emit(executor.Event{Level: executor.LevelInfo, ScriptID: "one", Message: "Starting One"})
 	sink.Emit(executor.Event{Level: executor.LevelWarn, ScriptID: "one", Message: "synthetic warning"})
 	sink.Emit(executor.Event{Level: executor.LevelInfo, ScriptID: "one", Message: "Completed One"})
 	return executor.Summary{Succeeded: 1}, nil
 }
-func (f *fakeService) InspectProfileArchive(context.Context, string) (profile.ArchiveInspection, error) { return profile.ArchiveInspection{}, nil }
-func (f *fakeService) ExportProfile(context.Context, string, string) error { return nil }
-func (f *fakeService) ImportProfile(context.Context, string, bool) (profile.Profile, error) { return profile.Profile{}, nil }
 
-func TestConnectionAndRunCommands(t *testing.T) {
+func TestRunConnectsProfileBeforeExecution(t *testing.T) {
+	service := &fakeService{}
+	code, output, stderr := executeTest(t, service, "run", "profile", "--schema", "app")
+	if code != 0 || stderr != "" || !service.connected || !strings.Contains(output, "1 succeeded, 0 failed") {
+		t.Fatalf("run code=%d output=%q stderr=%q connected=%v", code, output, stderr, service.connected)
+	}
+}
+func (f *fakeService) InspectProfileArchive(context.Context, string) (profile.ArchiveInspection, error) {
+	return profile.ArchiveInspection{}, nil
+}
+func (f *fakeService) ExportProfile(context.Context, string, string) error { return nil }
+func (f *fakeService) ImportProfile(context.Context, string, bool) (profile.Profile, error) {
+	return profile.Profile{}, nil
+}
+
+func TestConnectAndRunCommands(t *testing.T) {
 	service := &fakeService{}
 	code, output, _ := executeTest(t, service, "connection", "test", "profile")
 	if code != 0 || !strings.Contains(output, "MySQL 8.x (8.0.43)") {

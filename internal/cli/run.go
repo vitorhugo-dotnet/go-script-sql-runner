@@ -19,6 +19,9 @@ func newRunCommand(ctx context.Context, service Service, stdout io.Writer, state
 		Short: "Execute an ordered SQL profile",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
+			if _, err := service.Connect(ctx, args[0]); err != nil {
+				return err
+			}
 			opts := executor.RunOptions{Schema: strings.TrimSpace(schema)}
 			if stopOnError {
 				opts.OnError = profile.OnErrorStop

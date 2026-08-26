@@ -18,7 +18,7 @@ type Service interface {
 	GetProfile(context.Context, string) (profile.Profile, error)
 	AddScript(context.Context, string, string) (profile.Script, error)
 	RemoveScript(context.Context, string, string) error
-	TestConnection(context.Context, string) (database.ConnectionResult, error)
+	Connect(context.Context, string) (database.ConnectionResult, error)
 	RunProfile(context.Context, string, executor.RunOptions, executor.Sink) (executor.Summary, error)
 	InspectProfileArchive(context.Context, string) (profile.ArchiveInspection, error)
 	ExportProfile(context.Context, string, string) error

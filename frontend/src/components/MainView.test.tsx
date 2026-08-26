@@ -75,7 +75,7 @@ function fakeApi() {
       scripts: profile.scripts.map((script) => (script.id === scriptID ? { ...script, enabled } : script)),
     })),
     setScriptTransactionMode: vi.fn().mockResolvedValue(profile),
-    testConnection: vi.fn().mockResolvedValue(connectionResult),
+    connect: vi.fn().mockResolvedValue(connectionResult),
     runProfile: vi.fn().mockResolvedValue({ results: [], succeeded: 2, failed: 0, aborted: false }),
     stopRun: vi.fn().mockResolvedValue(true),
     importProfileFromDialog: vi.fn().mockResolvedValue(null),
@@ -111,7 +111,7 @@ describe('main runner workspace', () => {
     expect(screen.getByLabelText('Profile')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Import' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Test Connection' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Connect' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Add SQL' })).toBeInTheDocument()
     expect(screen.getByLabelText('On failure')).toBeInTheDocument()
     expect(screen.getByLabelText('Transaction')).toBeInTheDocument()
@@ -142,13 +142,13 @@ describe('main runner workspace', () => {
     const schema = screen.getByRole('combobox', { name: 'Schema' })
     expect(schema).toBeDisabled()
 
-    await user.click(screen.getByRole('button', { name: 'Test Connection' }))
+    await user.click(screen.getByRole('button', { name: 'Connect' }))
 
     expect(await screen.findByText('MySQL 8.0')).toBeInTheDocument()
     expect(schema).toBeEnabled()
     expect(schema).toHaveValue('')
     expect(screen.getByRole('button', { name: 'Run' })).toBeDisabled()
-    expect(api.testConnection).toHaveBeenCalledWith('local-dev')
+    expect(api.connect).toHaveBeenCalledWith('local-dev')
   })
 
   it('opens the multi SQL operation from Add SQL', async () => {
@@ -184,7 +184,7 @@ describe('main runner workspace', () => {
     render(<App api={api as never} />)
 
     await screen.findByText('001-users.sql')
-    await user.click(screen.getByRole('button', { name: 'Test Connection' }))
+    await user.click(screen.getByRole('button', { name: 'Connect' }))
     const schema = screen.getByRole('combobox', { name: 'Schema' })
     await user.click(schema)
     await user.click(screen.getByRole('option', { name: 'apollo' }))
@@ -215,7 +215,7 @@ describe('main runner workspace', () => {
 
     render(<App api={api as never} />)
     await screen.findByText('001-users.sql')
-    await user.click(screen.getByRole('button', { name: 'Test Connection' }))
+    await user.click(screen.getByRole('button', { name: 'Connect' }))
     const schema = screen.getByRole('combobox', { name: 'Schema' })
     await user.click(schema)
     await user.click(screen.getByRole('option', { name: 'apollo' }))

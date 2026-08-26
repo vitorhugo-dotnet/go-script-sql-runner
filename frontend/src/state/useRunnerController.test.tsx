@@ -61,7 +61,7 @@ function fakeApi(overrides: Partial<RunnerApi> = {}) {
     reorderScripts: vi.fn().mockResolvedValue(firstProfile),
     setScriptEnabled: vi.fn().mockResolvedValue(firstProfile),
     setScriptTransactionMode: vi.fn().mockResolvedValue(firstProfile),
-    testConnection: vi.fn().mockResolvedValue(connectionResult),
+    connect: vi.fn().mockResolvedValue(connectionResult),
     runProfile: vi.fn().mockResolvedValue({ results: [], succeeded: 0, failed: 0, aborted: false }),
     stopRun: vi.fn().mockResolvedValue(true),
     importProfileFromDialog: vi.fn().mockResolvedValue(null),
@@ -96,7 +96,7 @@ describe('useRunnerController', () => {
 
     await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
     await act(async () => {
-      await result.current.testConnection()
+      await result.current.connect()
     })
     act(() => result.current.setSelectedSchema('apollo'))
     expect(result.current.selectedSchema).toBe('apollo')
@@ -120,7 +120,7 @@ describe('useRunnerController', () => {
 
     await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
     await act(async () => {
-      await result.current.testConnection()
+      await result.current.connect()
     })
 
     expect(result.current.capabilities?.versionLabel).toBe('MySQL 8.0')
@@ -129,21 +129,21 @@ describe('useRunnerController', () => {
   })
 
   it('clears schema state when connection testing fails', async () => {
-    const testConnection = vi
+    const connect = vi
       .fn()
       .mockResolvedValueOnce(connectionResult)
       .mockRejectedValueOnce(new Error('connection failed'))
-    const api = fakeApi({ testConnection })
+    const api = fakeApi({ connect })
     const { result } = renderHook(() => useRunnerController(api))
 
     await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
     await act(async () => {
-      await result.current.testConnection()
+      await result.current.connect()
     })
     act(() => result.current.setSelectedSchema('apollo'))
 
     await act(async () => {
-      await result.current.testConnection()
+      await result.current.connect()
     })
 
     expect(result.current.capabilities).toBeNull()
@@ -180,7 +180,7 @@ describe('useRunnerController', () => {
 
     await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
     await act(async () => {
-      await result.current.testConnection()
+      await result.current.connect()
       await result.current.run()
     })
 
@@ -202,7 +202,7 @@ describe('useRunnerController', () => {
 
     await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
     await act(async () => {
-      await result.current.testConnection()
+      await result.current.connect()
     })
     act(() => {
       result.current.setSelectedSchema('apollo')

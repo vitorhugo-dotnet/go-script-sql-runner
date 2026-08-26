@@ -96,7 +96,7 @@ export interface RunnerApi {
   reorderScripts(profileID: string, orderedIDs: string[]): Promise<Profile>
   setScriptEnabled(profileID: string, scriptID: string, enabled: boolean): Promise<Profile>
   setScriptTransactionMode(profileID: string, scriptID: string, mode: TransactionMode | ''): Promise<Profile>
-  testConnection(profileID: string): Promise<ConnectionResult>
+  connect(profileID: string): Promise<ConnectionResult>
   runProfile(profileID: string, options: RunOptions): Promise<RunSummary>
   stopRun(): Promise<boolean>
   importProfileFromDialog(): Promise<Profile | null>

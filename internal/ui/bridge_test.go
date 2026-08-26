@@ -23,7 +23,7 @@ type fakeDialogs struct {
 	defaultName  string
 }
 
-func (d *fakeDialogs) OpenSQLFile(context.Context) (string, error) { return d.sqlFile, nil }
+func (d *fakeDialogs) OpenSQLFile(context.Context) (string, error)    { return d.sqlFile, nil }
 func (d *fakeDialogs) OpenProfileZIP(context.Context) (string, error) { return d.zipFile, nil }
 func (d *fakeDialogs) SaveProfileZIP(_ context.Context, defaultName string) (string, error) {
 	d.defaultName = defaultName
@@ -62,8 +62,12 @@ type fakeService struct {
 	runStarted     chan struct{}
 }
 
-func (s *fakeService) CreateProfile(_ context.Context, p profile.Profile) (profile.Profile, error) { return p, nil }
-func (s *fakeService) ListProfiles(context.Context) ([]profile.Profile, error) { return s.profiles, nil }
+func (s *fakeService) CreateProfile(_ context.Context, p profile.Profile) (profile.Profile, error) {
+	return p, nil
+}
+func (s *fakeService) ListProfiles(context.Context) ([]profile.Profile, error) {
+	return s.profiles, nil
+}
 func (s *fakeService) GetProfile(_ context.Context, id string) (profile.Profile, error) {
 	for _, p := range s.profiles {
 		if p.ID == id {
@@ -72,17 +76,25 @@ func (s *fakeService) GetProfile(_ context.Context, id string) (profile.Profile,
 	}
 	return profile.Profile{}, errors.New("not found")
 }
-func (s *fakeService) UpdateProfile(_ context.Context, p profile.Profile) (profile.Profile, error) { return p, nil }
+func (s *fakeService) UpdateProfile(_ context.Context, p profile.Profile) (profile.Profile, error) {
+	return p, nil
+}
 func (s *fakeService) AddScript(_ context.Context, _ string, source string) (profile.Script, error) {
 	s.addedPath = source
 	s.addedPaths = append(s.addedPaths, source)
 	return profile.Script{ID: "added", Name: "added", File: "scripts/added.sql", Enabled: true, Order: 10}, nil
 }
 func (s *fakeService) RemoveScript(context.Context, string, string) error { return nil }
-func (s *fakeService) ReorderScripts(_ context.Context, id string, _ []string) (profile.Profile, error) { return s.GetProfile(context.Background(), id) }
-func (s *fakeService) SetScriptEnabled(_ context.Context, id, _ string, _ bool) (profile.Profile, error) { return s.GetProfile(context.Background(), id) }
-func (s *fakeService) SetScriptTransactionMode(_ context.Context, id, _ string, _ profile.TransactionMode) (profile.Profile, error) { return s.GetProfile(context.Background(), id) }
-func (s *fakeService) TestConnection(context.Context, string) (database.ConnectionResult, error) {
+func (s *fakeService) ReorderScripts(_ context.Context, id string, _ []string) (profile.Profile, error) {
+	return s.GetProfile(context.Background(), id)
+}
+func (s *fakeService) SetScriptEnabled(_ context.Context, id, _ string, _ bool) (profile.Profile, error) {
+	return s.GetProfile(context.Background(), id)
+}
+func (s *fakeService) SetScriptTransactionMode(_ context.Context, id, _ string, _ profile.TransactionMode) (profile.Profile, error) {
+	return s.GetProfile(context.Background(), id)
+}
+func (s *fakeService) Connect(context.Context, string) (database.ConnectionResult, error) {
 	return database.ConnectionResult{
 		Capabilities: database.ServerCapabilities{Vendor: database.VendorMySQL, Major: 8, Minor: 0, Patch: 43, RawVersion: "8.0.43", VersionLabel: "MySQL 8.x"},
 		Schemas:      []string{"apollo"},
@@ -100,7 +112,9 @@ func (s *fakeService) RunProfile(ctx context.Context, _ string, _ executor.RunOp
 	sink.Emit(executor.Event{Time: time.Now(), Level: executor.LevelError, ScriptID: "one", Message: "Failed One", Detail: "authentication failed: ***"})
 	return executor.Summary{Failed: 1}, nil
 }
-func (s *fakeService) InspectProfileArchive(context.Context, string) (profile.ArchiveInspection, error) { return s.archive, nil }
+func (s *fakeService) InspectProfileArchive(context.Context, string) (profile.ArchiveInspection, error) {
+	return s.archive, nil
+}
 func (s *fakeService) ImportProfile(_ context.Context, _ string, overwrite bool) (profile.Profile, error) {
 	s.imports = append(s.imports, overwrite)
 	if s.importConflict && !overwrite {
@@ -108,7 +122,10 @@ func (s *fakeService) ImportProfile(_ context.Context, _ string, overwrite bool)
 	}
 	return s.archive.Profile, nil
 }
-func (s *fakeService) ExportProfile(_ context.Context, _ string, destination string) error { s.exportedTo = destination; return nil }
+func (s *fakeService) ExportProfile(_ context.Context, _ string, destination string) error {
+	s.exportedTo = destination
+	return nil
+}
 
 func TestDialogCancellationDoesNothing(t *testing.T) {
 	service := &fakeService{profiles: []profile.Profile{{ID: "p", Name: "Profile"}}}

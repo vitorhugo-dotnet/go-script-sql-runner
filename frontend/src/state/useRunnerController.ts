@@ -112,12 +112,12 @@ export function useRunnerController(api: RunnerApi) {
     return refreshed
   }, [api, selectedProfile])
 
-  const testConnection = useCallback(async () => {
+  const connect = useCallback(async () => {
     if (!selectedProfile) return
     try {
       setError(null)
       clearConnectionState()
-      const result = await api.testConnection(selectedProfile.id)
+      const result = await api.connect(selectedProfile.id)
       setCapabilities(result.capabilities)
       setAvailableSchemas(result.schemas)
     } catch (cause) {
@@ -295,7 +295,7 @@ export function useRunnerController(api: RunnerApi) {
     setSelectedSchema,
     setRunOnError,
     setRunTransactionMode,
-    testConnection,
+    connect,
     addSQLFile: addSQLFiles,
     addSQLFiles,
     removeScript,

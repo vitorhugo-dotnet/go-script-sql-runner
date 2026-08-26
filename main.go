@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/wailsapp/wails/v2"
-	"github.com/wailsapp/wails/v2/pkg/options"
-	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/bootstrap"
 	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/cli"
 	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/ui"
 	wailsui "github.com/vitorhugo-dotnet/go-script-sql-runner/internal/ui/wails"
+	"github.com/wailsapp/wails/v2"
+	"github.com/wailsapp/wails/v2/pkg/options"
+	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 )
 
 //go:embed all:frontend/dist
@@ -58,7 +58,13 @@ func run() int {
 			Assets: assets,
 		},
 		OnStartup: desktop.Startup,
-		Bind:      []interface{}{desktop},
+		OnShutdown: func(context.Context) {
+			bridge.StopRun()
+			if closeErr := runtime.Close(); closeErr != nil {
+				fmt.Fprintln(os.Stderr, "Error closing runtime:", closeErr)
+			}
+		},
+		Bind: []interface{}{desktop},
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "Error starting desktop UI:", err)

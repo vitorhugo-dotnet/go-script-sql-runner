@@ -21,7 +21,7 @@ interface DesktopBinding {
   ReorderScripts(profileID: string, orderedIDs: string[]): Promise<Profile>
   SetScriptEnabled(profileID: string, scriptID: string, enabled: boolean): Promise<Profile>
   SetScriptTransactionMode(profileID: string, scriptID: string, mode: TransactionMode | ''): Promise<Profile>
-  TestConnection(profileID: string): Promise<ConnectionResult>
+  Connect(profileID: string): Promise<ConnectionResult>
   RunProfile(profileID: string, options: RunOptions): Promise<RunSummary>
   StopRun(): Promise<boolean>
   ImportProfileFromDialog(): Promise<Profile | null>
@@ -65,7 +65,7 @@ export const wailsRunnerApi: RunnerApi = {
   setScriptEnabled: (profileID, scriptID, enabled) => desktop().SetScriptEnabled(profileID, scriptID, enabled),
   setScriptTransactionMode: (profileID, scriptID, mode) =>
     desktop().SetScriptTransactionMode(profileID, scriptID, mode),
-  testConnection: (profileID) => desktop().TestConnection(profileID),
+  connect: (profileID) => desktop().Connect(profileID),
   runProfile: (profileID, options) => desktop().RunProfile(profileID, options),
   stopRun: () => desktop().StopRun(),
   importProfileFromDialog: () => desktop().ImportProfileFromDialog(),

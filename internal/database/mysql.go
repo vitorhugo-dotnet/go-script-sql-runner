@@ -29,28 +29,33 @@ func buildConfig(c profile.Connection, dbName string) *mysql.Config {
 	return cfg
 }
 
-// TestConnection validates server access without selecting a default database,
-// detects server capabilities, and returns schemas visible to the connected user.
-func TestConnection(ctx context.Context, c profile.Connection) (ConnectionResult, error) {
+// ConnectServer opens a persistent server session without selecting a default
+// database, detects server capabilities, and returns visible schemas.
+func ConnectServer(ctx context.Context, c profile.Connection) (*Client, ConnectionResult, error) {
 	db, err := open(buildConfig(c, ""))
 	if err != nil {
-		return ConnectionResult{}, fmt.Errorf("open MySQL server probe: %w", err)
+		return nil, ConnectionResult{}, fmt.Errorf("open MySQL server connection: %w", err)
 	}
-	defer db.Close()
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 
 	if err := db.PingContext(ctx); err != nil {
-		return ConnectionResult{}, fmt.Errorf("connect to MySQL server: %w", err)
+		_ = db.Close()
+		return nil, ConnectionResult{}, fmt.Errorf("connect to MySQL server: %w", err)
 	}
 
 	capabilities, err := detectCapabilities(ctx, db)
 	if err != nil {
-		return ConnectionResult{}, err
+		_ = db.Close()
+		return nil, ConnectionResult{}, err
 	}
 	schemas, err := listSchemas(ctx, db)
 	if err != nil {
-		return ConnectionResult{}, err
+		_ = db.Close()
+		return nil, ConnectionResult{}, err
 	}
-	return ConnectionResult{Capabilities: capabilities, Schemas: schemas}, nil
+	client := &Client{DB: db, Capabilities: capabilities}
+	return client, ConnectionResult{Capabilities: capabilities, Schemas: schemas}, nil
 }
 
 // Connect keeps the legacy package API for integration callers. New runtime

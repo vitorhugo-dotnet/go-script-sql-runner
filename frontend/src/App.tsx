@@ -122,9 +122,9 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
               className={buttonClass}
               type="button"
               disabled={!profile || controller.running}
-              onClick={() => void controller.testConnection()}
+              onClick={() => void controller.connect()}
             >
-              Test Connection
+              Connect
             </button>
             <SchemaSelect
               schemas={controller.availableSchemas}

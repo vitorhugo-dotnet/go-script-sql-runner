@@ -1,6 +1,11 @@
 package database
 
-import "database/sql"
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"strings"
+)
 
 type Vendor string
 
@@ -33,4 +38,19 @@ func (c *Client) Close() error {
 		return nil
 	}
 	return c.DB.Close()
+}
+
+func (c *Client) UseSchema(ctx context.Context, schema string) error {
+	if c == nil || c.DB == nil {
+		return fmt.Errorf("database client is not available")
+	}
+	schema = strings.TrimSpace(schema)
+	if schema == "" {
+		return fmt.Errorf("schema is required")
+	}
+	quoted := strings.ReplaceAll(schema, "`", "``")
+	if _, err := c.DB.ExecContext(ctx, "USE `"+quoted+"`"); err != nil {
+		return fmt.Errorf("select MySQL database %q: %w", schema, err)
+	}
+	return nil
 }

@@ -36,7 +36,8 @@ func newRuntime(root string) (*Runtime, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Runtime{Service: app.NewService(repository, fileSink), closers: []io.Closer{fileSink}}, nil
+	service := app.NewService(repository, fileSink)
+	return &Runtime{Service: service, closers: []io.Closer{service, fileSink}}, nil
 }
 
 func (r *Runtime) Close() error {

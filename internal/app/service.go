@@ -2,9 +2,11 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/database"
 	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/executor"
@@ -13,14 +15,17 @@ import (
 	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/storage"
 )
 
-type connectionTestFunc func(context.Context, profile.Connection) (database.ConnectionResult, error)
-type databaseConnectorFunc func(context.Context, profile.Connection, string) (*database.Client, error)
+type serverConnectorFunc func(context.Context, profile.Connection) (*database.Client, database.ConnectionResult, error)
 
 type Service struct {
-	repository      *storage.Repository
-	testConnection  connectionTestFunc
-	connectDatabase databaseConnectorFunc
-	persistentSink  executor.Sink
+	repository     *storage.Repository
+	connectServer  serverConnectorFunc
+	persistentSink executor.Sink
+
+	connectionMu    sync.Mutex
+	activeClient    *database.Client
+	activeProfileID string
+	closed          bool
 }
 
 // NewService creates the shared application service. A persistent execution
@@ -32,11 +37,57 @@ func NewService(repository *storage.Repository, persistentSink ...executor.Sink)
 		sink = persistentSink[0]
 	}
 	return &Service{
-		repository:      repository,
-		testConnection:  database.TestConnection,
-		connectDatabase: database.ConnectToDatabase,
-		persistentSink:  sink,
+		repository:     repository,
+		connectServer:  database.ConnectServer,
+		persistentSink: sink,
 	}
+}
+
+func (s *Service) Connect(ctx context.Context, profileID string) (database.ConnectionResult, error) {
+	s.connectionMu.Lock()
+	closed := s.closed
+	s.connectionMu.Unlock()
+	if closed {
+		return database.ConnectionResult{}, fmt.Errorf("service is closed")
+	}
+	p, err := s.repository.Get(profileID)
+	if err != nil {
+		return database.ConnectionResult{}, fmt.Errorf("get profile %q: %w", profileID, err)
+	}
+	client, result, err := s.connectServer(ctx, p.Connection)
+	if err != nil {
+		return database.ConnectionResult{}, err
+	}
+
+	s.connectionMu.Lock()
+	if s.closed {
+		s.connectionMu.Unlock()
+		return database.ConnectionResult{}, errors.Join(fmt.Errorf("service is closed"), client.Close())
+	}
+	previous := s.activeClient
+	s.activeClient = client
+	s.activeProfileID = profileID
+	s.connectionMu.Unlock()
+	if previous != nil {
+		_ = previous.Close()
+	}
+	return result, nil
+}
+
+func (s *Service) Close() error {
+	if s == nil {
+		return nil
+	}
+	s.connectionMu.Lock()
+	s.closed = true
+	client := s.activeClient
+	s.activeClient = nil
+	s.activeProfileID = ""
+	s.connectionMu.Unlock()
+	if client == nil {
+		return nil
+	}
+	return client.Close()
 }
 
 func (s *Service) CreateProfile(_ context.Context, p profile.Profile) (profile.Profile, error) {
@@ -128,18 +179,6 @@ func (s *Service) RemoveScript(_ context.Context, profileID, scriptID string) er
 	return nil
 }
 
-func (s *Service) TestConnection(ctx context.Context, profileID string) (database.ConnectionResult, error) {
-	p, err := s.repository.Get(profileID)
-	if err != nil {
-		return database.ConnectionResult{}, fmt.Errorf("get profile %q: %w", profileID, err)
-	}
-	result, err := s.testConnection(ctx, p.Connection)
-	if err != nil {
-		return database.ConnectionResult{}, err
-	}
-	return result, nil
-}
-
 func (s *Service) RunProfile(ctx context.Context, profileID string, opts executor.RunOptions, sink executor.Sink) (executor.Summary, error) {
 	p, err := s.repository.Get(profileID)
 	if err != nil {
@@ -150,11 +189,15 @@ func (s *Service) RunProfile(ctx context.Context, profileID string, opts executo
 		return executor.Summary{}, fmt.Errorf("schema is required")
 	}
 	opts.Schema = schema
-	client, err := s.connectDatabase(ctx, p.Connection, schema)
-	if err != nil {
+	s.connectionMu.Lock()
+	defer s.connectionMu.Unlock()
+	client := s.activeClient
+	if client == nil || s.activeProfileID != profileID {
+		return executor.Summary{}, fmt.Errorf("connect profile %q before running", profileID)
+	}
+	if err := client.UseSchema(ctx, schema); err != nil {
 		return executor.Summary{}, err
 	}
-	defer client.Close()
 	combined := fanOutSink{s.persistentSink, sink}
 	return executor.Run(ctx, client, p, s.repository.ScriptRoot(profileID), opts, combined), nil
 }

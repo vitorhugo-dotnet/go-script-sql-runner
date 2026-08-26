@@ -14,7 +14,7 @@ func newConnectionCommand(ctx context.Context, service Service) *cobra.Command {
 		Short: "Connect, detect the MySQL server version, and discover schemas",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			result, err := service.TestConnection(ctx, args[0])
+			result, err := service.Connect(ctx, args[0])
 			if err != nil {
 				return err
 			}

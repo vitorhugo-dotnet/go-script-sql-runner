@@ -53,73 +53,97 @@ func (a *DesktopApp) appContext() (context.Context, error) {
 
 func (a *DesktopApp) CreateProfile(p profile.Profile) (profile.Profile, error) {
 	ctx, err := a.appContext()
-	if err != nil { return profile.Profile{}, err }
+	if err != nil {
+		return profile.Profile{}, err
+	}
 	return a.bridge.CreateProfile(ctx, p)
 }
 
 func (a *DesktopApp) ListProfiles() ([]profile.Profile, error) {
 	ctx, err := a.appContext()
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return a.bridge.ListProfiles(ctx)
 }
 
 func (a *DesktopApp) GetProfile(profileID string) (profile.Profile, error) {
 	ctx, err := a.appContext()
-	if err != nil { return profile.Profile{}, err }
+	if err != nil {
+		return profile.Profile{}, err
+	}
 	return a.bridge.GetProfile(ctx, profileID)
 }
 
 func (a *DesktopApp) UpdateProfile(p profile.Profile) (profile.Profile, error) {
 	ctx, err := a.appContext()
-	if err != nil { return profile.Profile{}, err }
+	if err != nil {
+		return profile.Profile{}, err
+	}
 	return a.bridge.UpdateProfile(ctx, p)
 }
 
 func (a *DesktopApp) AddScriptFromDialog(profileID string) (*profile.Script, error) {
 	ctx, err := a.appContext()
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return a.bridge.AddScriptFromDialog(ctx, profileID)
 }
 
 func (a *DesktopApp) AddScriptsFromDialog(profileID string) ([]profile.Script, error) {
 	ctx, err := a.appContext()
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return a.bridge.AddScriptsFromDialog(ctx, profileID)
 }
 
 func (a *DesktopApp) RemoveScript(profileID, scriptID string) error {
 	ctx, err := a.appContext()
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	return a.bridge.RemoveScript(ctx, profileID, scriptID)
 }
 
 func (a *DesktopApp) ReorderScripts(profileID string, orderedIDs []string) (profile.Profile, error) {
 	ctx, err := a.appContext()
-	if err != nil { return profile.Profile{}, err }
+	if err != nil {
+		return profile.Profile{}, err
+	}
 	return a.bridge.ReorderScripts(ctx, profileID, orderedIDs)
 }
 
 func (a *DesktopApp) SetScriptEnabled(profileID, scriptID string, enabled bool) (profile.Profile, error) {
 	ctx, err := a.appContext()
-	if err != nil { return profile.Profile{}, err }
+	if err != nil {
+		return profile.Profile{}, err
+	}
 	return a.bridge.SetScriptEnabled(ctx, profileID, scriptID, enabled)
 }
 
 func (a *DesktopApp) SetScriptTransactionMode(profileID, scriptID string, mode profile.TransactionMode) (profile.Profile, error) {
 	ctx, err := a.appContext()
-	if err != nil { return profile.Profile{}, err }
+	if err != nil {
+		return profile.Profile{}, err
+	}
 	return a.bridge.SetScriptTransactionMode(ctx, profileID, scriptID, mode)
 }
 
-func (a *DesktopApp) TestConnection(profileID string) (database.ConnectionResult, error) {
+func (a *DesktopApp) Connect(profileID string) (database.ConnectionResult, error) {
 	ctx, err := a.appContext()
-	if err != nil { return database.ConnectionResult{}, err }
-	return a.bridge.TestConnection(ctx, profileID)
+	if err != nil {
+		return database.ConnectionResult{}, err
+	}
+	return a.bridge.Connect(ctx, profileID)
 }
 
 func (a *DesktopApp) RunProfile(profileID string, options executor.RunOptions) (executor.Summary, error) {
 	ctx, err := a.appContext()
-	if err != nil { return executor.Summary{}, err }
+	if err != nil {
+		return executor.Summary{}, err
+	}
 	return a.bridge.RunProfile(ctx, profileID, options)
 }
 
@@ -129,13 +153,17 @@ func (a *DesktopApp) StopRun() bool {
 
 func (a *DesktopApp) ImportProfileFromDialog() (*profile.Profile, error) {
 	ctx, err := a.appContext()
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	return a.bridge.ImportProfileFromDialog(ctx)
 }
 
 func (a *DesktopApp) ExportProfileToDialog(profileID string) (string, error) {
 	ctx, err := a.appContext()
-	if err != nil { return "", err }
+	if err != nil {
+		return "", err
+	}
 	return a.bridge.ExportProfileToDialog(ctx, profileID)
 }
 

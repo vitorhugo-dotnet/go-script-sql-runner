@@ -59,7 +59,7 @@ The default desktop window exposes the essential workflow without navigating to 
 2. Configure host, port, database/schema, username and password.
 3. Add one or more `.sql` files. Multiple files can be selected in the native picker.
 4. Reorder, enable/disable or set a transaction override per script when needed.
-5. Test the connection and review the detected server version.
+5. Connect to the database server and review the detected server version.
 6. Choose the run-only failure and transaction policies.
 7. Run the scripts and follow execution events in the bottom log panel.
 
