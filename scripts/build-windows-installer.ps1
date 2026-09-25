@@ -48,7 +48,7 @@ $previousExtensionRoot = $env:WIX_EXTENSION
 try {
     # WIX_EXTENSION redirects WiX's global cache to this temporary task-specific path.
     $env:WIX_EXTENSION = $extensionRoot
-    $extensionList = (& $wixPath extension list --global 2>&1 | Out-String)
+    $extensionList = (& $wixPath extension list --global -acceptEula wix7 2>&1 | Out-String)
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to inspect the temporary WiX extension cache: $($extensionList.Trim())"
     }
