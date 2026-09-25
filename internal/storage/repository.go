@@ -7,7 +7,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
+	"strings"
 
 	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/profile"
 )
@@ -79,7 +81,7 @@ func (r *Repository) List() ([]profile.Profile, error) {
 	}
 	profiles := make([]profile.Profile, 0, len(entries))
 	for _, entry := range entries {
-		if !entry.IsDir() {
+		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".clone-") {
 			continue
 		}
 		p, err := r.Get(entry.Name())
@@ -103,6 +105,101 @@ func (r *Repository) Delete(id string) error {
 	}
 	if err := os.RemoveAll(r.ProfileDir(id)); err != nil {
 		return fmt.Errorf("delete profile: %w", err)
+	}
+	return nil
+}
+
+// Clone copies a profile's managed SQL files before publishing the destination.
+func (r *Repository) Clone(sourceID string, destination profile.Profile) error {
+	if !validLookupID(sourceID) || !validLookupID(destination.ID) {
+		return fmt.Errorf("invalid profile id")
+	}
+	if err := profile.Validate(destination); err != nil {
+		return fmt.Errorf("validate clone destination: %w", err)
+	}
+	if sourceID == destination.ID {
+		return fmt.Errorf("clone destination %q is the source profile", destination.ID)
+	}
+	source, err := r.Get(sourceID)
+	if err != nil {
+		return fmt.Errorf("load clone source %q: %w", sourceID, err)
+	}
+	if !reflect.DeepEqual(destination.Scripts, source.Scripts) {
+		return fmt.Errorf("clone destination scripts differ from source %q", sourceID)
+	}
+	if err := r.ensure(); err != nil {
+		return err
+	}
+	profilesRoot := filepath.Join(r.root, "profiles")
+	destinationDir := r.ProfileDir(destination.ID)
+	if _, err := os.Lstat(destinationDir); err == nil {
+		return fmt.Errorf("clone destination %q already exists", destination.ID)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("check clone destination %q: %w", destination.ID, err)
+	}
+
+	sourceDir := r.ProfileDir(sourceID)
+	sourceInfo, err := os.Lstat(sourceDir)
+	if err != nil {
+		return fmt.Errorf("stat clone source %q: %w", sourceID, err)
+	}
+	if !sourceInfo.IsDir() {
+		return fmt.Errorf("clone source %q is not a directory", sourceID)
+	}
+	resolvedSource, err := filepath.EvalSymlinks(sourceDir)
+	if err != nil {
+		return fmt.Errorf("resolve clone source %q: %w", sourceID, err)
+	}
+	stagingDir, err := os.MkdirTemp(profilesRoot, ".clone-")
+	if err != nil {
+		return fmt.Errorf("create clone staging directory: %w", err)
+	}
+	defer os.RemoveAll(stagingDir)
+
+	for _, script := range source.Scripts {
+		if !strings.EqualFold(filepath.Ext(script.File), ".sql") {
+			return fmt.Errorf("clone script %q is not a SQL file", script.ID)
+		}
+		sourcePath := filepath.Join(sourceDir, filepath.FromSlash(script.File))
+		rel, err := filepath.Rel(sourceDir, sourcePath)
+		if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return fmt.Errorf("clone script %q escapes source profile", script.ID)
+		}
+		resolvedPath, err := filepath.EvalSymlinks(sourcePath)
+		if err != nil {
+			return fmt.Errorf("resolve clone script %q: %w", script.ID, err)
+		}
+		resolvedRel, err := filepath.Rel(resolvedSource, resolvedPath)
+		if err != nil || resolvedRel == "." || resolvedRel == ".." || strings.HasPrefix(resolvedRel, ".."+string(filepath.Separator)) {
+			return fmt.Errorf("clone script %q escapes source profile", script.ID)
+		}
+		info, err := os.Lstat(sourcePath)
+		if err != nil {
+			return fmt.Errorf("stat clone script %q: %w", script.ID, err)
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("clone script %q is not a regular file", script.ID)
+		}
+		data, err := os.ReadFile(sourcePath)
+		if err != nil {
+			return fmt.Errorf("read clone script %q: %w", script.ID, err)
+		}
+		if err := atomicWrite(filepath.Join(stagingDir, rel), data, 0o600); err != nil {
+			return fmt.Errorf("write clone script %q: %w", script.ID, err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(stagingDir, "scripts"), 0o700); err != nil {
+		return fmt.Errorf("create clone script directory: %w", err)
+	}
+	var encoded bytes.Buffer
+	if err := profile.Encode(&encoded, destination); err != nil {
+		return fmt.Errorf("encode clone destination: %w", err)
+	}
+	if err := atomicWrite(filepath.Join(stagingDir, "profile.yaml"), encoded.Bytes(), 0o600); err != nil {
+		return fmt.Errorf("write clone profile: %w", err)
+	}
+	if err := os.Rename(stagingDir, destinationDir); err != nil {
+		return fmt.Errorf("publish clone destination %q: %w", destination.ID, err)
 	}
 	return nil
 }
