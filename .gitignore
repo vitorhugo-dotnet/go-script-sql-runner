@@ -5,6 +5,7 @@ frontend/dist/*
 !frontend/dist/index.html
 
 # Local runtime/profile artifacts
+.worktrees/
 GoScriptSQLRunner/
 appdata/
 .local/
