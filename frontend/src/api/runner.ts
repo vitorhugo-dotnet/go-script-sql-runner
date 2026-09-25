@@ -15,6 +15,8 @@ interface DesktopBinding {
   GetProfile(profileID: string): Promise<Profile>
   CreateProfile(profile: Profile): Promise<Profile>
   UpdateProfile(profile: Profile): Promise<Profile>
+  DeleteProfile(profileID: string): Promise<void>
+  CloneProfile(profileID: string): Promise<Profile>
   AddScriptFromDialog(profileID: string): Promise<Script | null>
   AddScriptsFromDialog(profileID: string): Promise<Script[]>
   RemoveScript(profileID: string, scriptID: string): Promise<void>
@@ -58,6 +60,8 @@ export const wailsRunnerApi: RunnerApi = {
   getProfile: (profileID) => desktop().GetProfile(profileID),
   createProfile: (profile) => desktop().CreateProfile(profile),
   updateProfile: (profile) => desktop().UpdateProfile(profile),
+  deleteProfile: (profileID) => desktop().DeleteProfile(profileID),
+  cloneProfile: (profileID) => desktop().CloneProfile(profileID),
   addScriptFromDialog: (profileID) => desktop().AddScriptFromDialog(profileID),
   addScriptsFromDialog: (profileID) => desktop().AddScriptsFromDialog(profileID),
   removeScript: (profileID, scriptID) => desktop().RemoveScript(profileID, scriptID),

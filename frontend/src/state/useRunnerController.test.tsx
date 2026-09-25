@@ -55,6 +55,8 @@ function fakeApi(overrides: Partial<RunnerApi> = {}) {
     getProfile: vi.fn().mockImplementation(async (id: string) => profiles.get(id) ?? firstProfile),
     createProfile: vi.fn().mockImplementation(async (profile: Profile) => profile),
     updateProfile: vi.fn().mockImplementation(async (profile: Profile) => profile),
+    deleteProfile: vi.fn().mockResolvedValue(undefined),
+    cloneProfile: vi.fn().mockResolvedValue({ ...firstProfile, id: 'clone', name: 'First (copy)' }),
     addScriptFromDialog: vi.fn().mockResolvedValue(null),
     addScriptsFromDialog: vi.fn().mockResolvedValue([]),
     removeScript: vi.fn().mockResolvedValue(undefined),
@@ -90,6 +92,94 @@ function fakeApi(overrides: Partial<RunnerApi> = {}) {
 }
 
 describe('useRunnerController', () => {
+  it('clones the selected profile, refreshes the list, and selects the returned clone', async () => {
+    const clone: Profile = { ...firstProfile, id: 'clone', name: 'First (copy)' }
+    const listProfiles = vi
+      .fn()
+      .mockResolvedValueOnce([firstProfile, secondProfile])
+      .mockResolvedValueOnce([firstProfile, secondProfile, clone])
+    const getProfile = vi.fn().mockImplementation(async (id: string) => (id === clone.id ? clone : firstProfile))
+    const cloneProfile = vi.fn().mockResolvedValue(clone)
+    const api = fakeApi({ listProfiles, getProfile, cloneProfile })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
+    let returned: Profile | null = null
+    await act(async () => {
+      returned = await result.current.cloneSelectedProfile()
+    })
+
+    expect(cloneProfile).toHaveBeenCalledWith('first')
+    expect(listProfiles).toHaveBeenCalledTimes(2)
+    expect(getProfile).toHaveBeenCalledWith('clone')
+    expect(returned).toEqual(clone)
+    expect(result.current.profiles.map((profile) => profile.id)).toEqual(['first', 'second', 'clone'])
+    expect(result.current.selectedProfile?.id).toBe('clone')
+  })
+
+  it.each([
+    { remaining: [secondProfile], expectedID: 'second' },
+    { remaining: [] as Profile[], expectedID: null },
+  ])('deletes the selected profile and selects $expectedID', async ({ remaining, expectedID }) => {
+    const listProfiles = vi
+      .fn()
+      .mockResolvedValueOnce([firstProfile, secondProfile])
+      .mockResolvedValueOnce(remaining)
+    const getProfile = vi.fn().mockImplementation(async (id: string) => (id === 'second' ? secondProfile : firstProfile))
+    const deleteProfile = vi.fn().mockResolvedValue(undefined)
+    const api = fakeApi({ listProfiles, getProfile, deleteProfile })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
+    let deleted = false
+    await act(async () => {
+      deleted = await result.current.deleteSelectedProfile()
+    })
+
+    expect(deleted).toBe(true)
+    expect(deleteProfile).toHaveBeenCalledWith('first')
+    expect(listProfiles).toHaveBeenCalledTimes(2)
+    expect(result.current.profiles).toEqual(remaining)
+    expect(result.current.selectedProfile?.id ?? null).toBe(expectedID)
+    if (expectedID) expect(getProfile).toHaveBeenCalledWith(expectedID)
+  })
+
+  it('keeps the current selection and reports clone or delete API errors', async () => {
+    const cloneProfile = vi.fn().mockRejectedValue(new Error('clone failed'))
+    const deleteProfile = vi.fn().mockRejectedValue(new Error('delete failed'))
+    const api = fakeApi({ cloneProfile, deleteProfile })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
+    await act(async () => {
+      expect(await result.current.cloneSelectedProfile()).toBeNull()
+    })
+    expect(result.current.error).toBe('clone failed')
+    expect(result.current.selectedProfile?.id).toBe('first')
+    await act(async () => {
+      expect(await result.current.deleteSelectedProfile()).toBe(false)
+    })
+    expect(result.current.error).toBe('delete failed')
+    expect(result.current.selectedProfile?.id).toBe('first')
+    expect(result.current.profiles.map((profile) => profile.id)).toEqual(['first', 'second'])
+  })
+
+  it('reports a failed delete refresh without claiming success', async () => {
+    const listProfiles = vi
+      .fn()
+      .mockResolvedValueOnce([firstProfile, secondProfile])
+      .mockRejectedValueOnce(new Error('refresh failed'))
+    const api = fakeApi({ listProfiles })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
+    await act(async () => {
+      expect(await result.current.deleteSelectedProfile()).toBe(false)
+    })
+    expect(result.current.error).toBe('refresh failed')
+    expect(result.current.selectedProfile?.id).toBe('first')
+  })
+
   it('selects the first profile initially and clears runtime schema state on profile selection', async () => {
     const api = fakeApi()
     const { result } = renderHook(() => useRunnerController(api))

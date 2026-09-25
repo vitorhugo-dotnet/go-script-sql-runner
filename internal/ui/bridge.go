@@ -34,6 +34,8 @@ type ServicePort interface {
 	ListProfiles(context.Context) ([]profile.Profile, error)
 	GetProfile(context.Context, string) (profile.Profile, error)
 	UpdateProfile(context.Context, profile.Profile) (profile.Profile, error)
+	DeleteProfile(context.Context, string) error
+	CloneProfile(context.Context, string) (profile.Profile, error)
 	AddScript(context.Context, string, string) (profile.Script, error)
 	RemoveScript(context.Context, string, string) error
 	ReorderScripts(context.Context, string, []string) (profile.Profile, error)
@@ -73,6 +75,14 @@ func (b *Bridge) GetProfile(ctx context.Context, profileID string) (profile.Prof
 
 func (b *Bridge) UpdateProfile(ctx context.Context, p profile.Profile) (profile.Profile, error) {
 	return b.service.UpdateProfile(ctx, p)
+}
+
+func (b *Bridge) DeleteProfile(ctx context.Context, profileID string) error {
+	return b.service.DeleteProfile(ctx, profileID)
+}
+
+func (b *Bridge) CloneProfile(ctx context.Context, profileID string) (profile.Profile, error) {
+	return b.service.CloneProfile(ctx, profileID)
 }
 
 func (b *Bridge) AddScriptFromDialog(ctx context.Context, profileID string) (*profile.Script, error) {

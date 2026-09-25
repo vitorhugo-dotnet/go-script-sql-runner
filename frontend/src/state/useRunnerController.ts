@@ -104,6 +104,38 @@ export function useRunnerController(api: RunnerApi) {
     [api, applySelectedProfile],
   )
 
+  const deleteSelectedProfile = useCallback(async (): Promise<boolean> => {
+    if (!selectedProfile) return false
+    try {
+      setError(null)
+      await api.deleteProfile(selectedProfile.id)
+      const loaded = await api.listProfiles()
+      const next = loaded.length > 0 ? await api.getProfile(loaded[0].id) : null
+      setProfiles(loaded)
+      applySelectedProfile(next)
+      return true
+    } catch (cause) {
+      setError(errorMessage(cause))
+      return false
+    }
+  }, [api, applySelectedProfile, selectedProfile])
+
+  const cloneSelectedProfile = useCallback(async (): Promise<Profile | null> => {
+    if (!selectedProfile) return null
+    try {
+      setError(null)
+      const cloned = await api.cloneProfile(selectedProfile.id)
+      const loaded = await api.listProfiles()
+      const fresh = await api.getProfile(cloned.id)
+      setProfiles(loaded)
+      applySelectedProfile(fresh)
+      return fresh
+    } catch (cause) {
+      setError(errorMessage(cause))
+      return null
+    }
+  }, [api, applySelectedProfile, selectedProfile])
+
   const refreshSelectedProfile = useCallback(async () => {
     if (!selectedProfile) return null
     const refreshed = await api.getProfile(selectedProfile.id)
@@ -292,6 +324,8 @@ export function useRunnerController(api: RunnerApi) {
     loadProfiles,
     selectProfile,
     saveProfile,
+    deleteSelectedProfile,
+    cloneSelectedProfile,
     setSelectedSchema,
     setRunOnError,
     setRunTransactionMode,

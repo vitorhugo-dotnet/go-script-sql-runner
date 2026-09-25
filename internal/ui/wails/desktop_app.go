@@ -83,6 +83,22 @@ func (a *DesktopApp) UpdateProfile(p profile.Profile) (profile.Profile, error) {
 	return a.bridge.UpdateProfile(ctx, p)
 }
 
+func (a *DesktopApp) DeleteProfile(profileID string) error {
+	ctx, err := a.appContext()
+	if err != nil {
+		return err
+	}
+	return a.bridge.DeleteProfile(ctx, profileID)
+}
+
+func (a *DesktopApp) CloneProfile(profileID string) (profile.Profile, error) {
+	ctx, err := a.appContext()
+	if err != nil {
+		return profile.Profile{}, err
+	}
+	return a.bridge.CloneProfile(ctx, profileID)
+}
+
 func (a *DesktopApp) AddScriptFromDialog(profileID string) (*profile.Script, error) {
 	ctx, err := a.appContext()
 	if err != nil {

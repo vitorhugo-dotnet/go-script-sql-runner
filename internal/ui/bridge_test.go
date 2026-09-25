@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -53,6 +54,13 @@ func (e *fakeEvents) EmitExecutionFinished(_ context.Context, summary executor.S
 
 type fakeService struct {
 	profiles       []profile.Profile
+	deleteID       string
+	deleteCtx      context.Context
+	deleteErr      error
+	cloneID        string
+	cloneCtx       context.Context
+	cloneResult    profile.Profile
+	cloneErr       error
 	archive        profile.ArchiveInspection
 	importConflict bool
 	imports        []bool
@@ -78,6 +86,16 @@ func (s *fakeService) GetProfile(_ context.Context, id string) (profile.Profile,
 }
 func (s *fakeService) UpdateProfile(_ context.Context, p profile.Profile) (profile.Profile, error) {
 	return p, nil
+}
+func (s *fakeService) DeleteProfile(ctx context.Context, id string) error {
+	s.deleteCtx = ctx
+	s.deleteID = id
+	return s.deleteErr
+}
+func (s *fakeService) CloneProfile(ctx context.Context, id string) (profile.Profile, error) {
+	s.cloneCtx = ctx
+	s.cloneID = id
+	return s.cloneResult, s.cloneErr
 }
 func (s *fakeService) AddScript(_ context.Context, _ string, source string) (profile.Script, error) {
 	s.addedPath = source
@@ -125,6 +143,30 @@ func (s *fakeService) ImportProfile(_ context.Context, _ string, overwrite bool)
 func (s *fakeService) ExportProfile(_ context.Context, _ string, destination string) error {
 	s.exportedTo = destination
 	return nil
+}
+
+func TestProfileDeleteCloneForwarding(t *testing.T) {
+	ctx := context.WithValue(context.Background(), struct{}{}, "selected")
+	clone := profile.Profile{ID: "copy-id", Name: "Source (copy)"}
+	service := &fakeService{cloneResult: clone}
+	bridge := NewBridge(service, nil, nil)
+	if err := bridge.DeleteProfile(ctx, "source-id"); err != nil || service.deleteID != "source-id" || service.deleteCtx != ctx {
+		t.Fatalf("DeleteProfile() forwarding: id=%q ctx=%v err=%v", service.deleteID, service.deleteCtx, err)
+	}
+	got, err := bridge.CloneProfile(ctx, "source-id")
+	if err != nil || !reflect.DeepEqual(got, clone) || service.cloneID != "source-id" || service.cloneCtx != ctx {
+		t.Fatalf("CloneProfile() forwarding: got=%#v id=%q ctx=%v err=%v", got, service.cloneID, service.cloneCtx, err)
+	}
+	deleteErr := errors.New("delete failed")
+	cloneErr := errors.New("clone failed")
+	service.deleteErr = deleteErr
+	service.cloneErr = cloneErr
+	if err := bridge.DeleteProfile(ctx, "other-id"); err != deleteErr || service.deleteID != "other-id" {
+		t.Fatalf("DeleteProfile() error forwarding: id=%q err=%v", service.deleteID, err)
+	}
+	if got, err := bridge.CloneProfile(ctx, "other-id"); err != cloneErr || !reflect.DeepEqual(got, clone) || service.cloneID != "other-id" {
+		t.Fatalf("CloneProfile() error forwarding: got=%#v id=%q err=%v", got, service.cloneID, err)
+	}
 }
 
 func TestDialogCancellationDoesNothing(t *testing.T) {
