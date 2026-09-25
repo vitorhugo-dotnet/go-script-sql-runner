@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { wailsRunnerApi } from './api/runner'
 import type { OnError, RunnerApi, TransactionMode, UpdateInfo } from './api/types'
 import ProfileDialog from './components/ProfileDialog'
+import ProfileDeleteDialog from './components/ProfileDeleteDialog'
 import SchemaSelect from './components/SchemaSelect'
 import UpdateNotice from './components/UpdateNotice'
 import { useRunnerController } from './state/useRunnerController'
@@ -31,6 +32,7 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
   const controller = useRunnerController(api)
   const [detailedLogs, setDetailedLogs] = useState(false)
   const [profileDialogMode, setProfileDialogMode] = useState<'create' | 'edit' | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const profile = controller.selectedProfile
   const scripts = [...(profile?.scripts ?? [])].sort((left, right) => left.order - right.order)
@@ -91,6 +93,22 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
             onClick={() => setProfileDialogMode('edit')}
           >
             Edit
+          </button>
+          <button
+            className={buttonClass}
+            type="button"
+            disabled={!profile || controller.running}
+            onClick={() => void controller.cloneSelectedProfile()}
+          >
+            Clone
+          </button>
+          <button
+            className={`${buttonClass} border-red-900/70 text-red-200 hover:bg-red-950`}
+            type="button"
+            disabled={!profile || controller.running}
+            onClick={() => setDeleteDialogOpen(true)}
+          >
+            Delete
           </button>
           <div className="flex-1" />
           <UpdateNotice info={updateInfo} onOpen={api.openExternalURL} />
@@ -342,6 +360,15 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
         onSave={async (draft) => {
           await controller.saveProfile(draft)
           setProfileDialogMode(null)
+        }}
+      />
+      <ProfileDeleteDialog
+        open={deleteDialogOpen && !!profile}
+        profileName={profile?.name ?? ''}
+        onCancel={() => setDeleteDialogOpen(false)}
+        onConfirm={async () => {
+          const deleted = await controller.deleteSelectedProfile()
+          if (deleted) setDeleteDialogOpen(false)
         }}
       />
     </>

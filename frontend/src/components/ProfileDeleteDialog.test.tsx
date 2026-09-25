@@ -1,0 +1,36 @@
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
+import ProfileDeleteDialog from './ProfileDeleteDialog'
+
+describe('ProfileDeleteDialog', () => {
+  it('names the selected profile and explains that its stored scripts are removed', () => {
+    render(
+      <ProfileDeleteDialog open profileName="Production" onCancel={vi.fn()} onConfirm={vi.fn()} />,
+    )
+
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete profile' })
+    expect(within(dialog).getByText('Production')).toBeInTheDocument()
+    expect(within(dialog).getByText(/stored scripts/i)).toBeInTheDocument()
+  })
+
+  it('cancels without confirming and confirms only after an explicit Delete click', async () => {
+    const user = userEvent.setup()
+    const onCancel = vi.fn()
+    const onConfirm = vi.fn().mockResolvedValue(undefined)
+    render(<ProfileDeleteDialog open profileName="Production" onCancel={onCancel} onConfirm={onConfirm} />)
+
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete profile' })
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(onCancel).toHaveBeenCalledOnce()
+    expect(onConfirm).not.toHaveBeenCalled()
+
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+    expect(onConfirm).toHaveBeenCalledOnce()
+  })
+
+  it('renders nothing when closed', () => {
+    render(<ProfileDeleteDialog open={false} profileName="Production" onCancel={vi.fn()} onConfirm={vi.fn()} />)
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+})

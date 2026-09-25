@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import App from '../App'
@@ -60,6 +60,8 @@ function fakeApi() {
     getProfile: vi.fn().mockResolvedValue(profile),
     createProfile: vi.fn().mockResolvedValue(profile),
     updateProfile: vi.fn().mockResolvedValue(profile),
+    deleteProfile: vi.fn().mockResolvedValue(undefined),
+    cloneProfile: vi.fn().mockResolvedValue({ ...profile, id: 'copy', name: 'Local dev (copy)' }),
     addScriptFromDialog: vi.fn().mockResolvedValue(null),
     addScriptsFromDialog: vi.fn().mockResolvedValue([]),
     removeScript: vi.fn().mockResolvedValue(undefined),
@@ -105,6 +107,95 @@ function fakeApi() {
 }
 
 describe('main runner workspace', () => {
+  it('clones the selected profile and selects the returned copy', async () => {
+    const user = userEvent.setup()
+    const api = fakeApi()
+    const clone = { ...profile, id: 'copy', name: 'Local dev (copy)' }
+    api.cloneProfile.mockResolvedValue(clone)
+    api.listProfiles.mockResolvedValueOnce([profile]).mockResolvedValueOnce([profile, clone])
+    api.getProfile.mockImplementation(async (id: string) => (id === clone.id ? clone : profile))
+    render(<App api={api as never} />)
+
+    await screen.findByText('001-users.sql')
+    await user.click(screen.getByRole('button', { name: 'Clone' }))
+
+    expect(api.cloneProfile).toHaveBeenCalledWith('local-dev')
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Profile' })).toHaveValue('copy'))
+    expect(screen.getByRole('option', { name: 'Local dev (copy)' })).toBeInTheDocument()
+  })
+
+  it('requires named confirmation and Cancel never deletes', async () => {
+    const user = userEvent.setup()
+    const api = fakeApi()
+    render(<App api={api as never} />)
+
+    await screen.findByText('001-users.sql')
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete profile' })
+    expect(within(dialog).getByText('Local dev')).toBeInTheDocument()
+    expect(api.deleteProfile).not.toHaveBeenCalled()
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(api.deleteProfile).not.toHaveBeenCalled()
+  })
+
+  it('keeps confirmation open and shows an error when deletion fails', async () => {
+    const user = userEvent.setup()
+    const api = fakeApi()
+    api.deleteProfile.mockRejectedValue(new Error('delete failed'))
+    render(<App api={api as never} />)
+
+    await screen.findByText('001-users.sql')
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete' }))
+
+    expect(api.deleteProfile).toHaveBeenCalledWith('local-dev')
+    expect(await screen.findByText('delete failed')).toBeInTheDocument()
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Profile' })).toHaveValue('local-dev')
+  })
+
+  it('closes confirmation and clears selection after deleting the last profile', async () => {
+    const user = userEvent.setup()
+    const api = fakeApi()
+    api.listProfiles.mockResolvedValueOnce([profile]).mockResolvedValueOnce([])
+    render(<App api={api as never} />)
+
+    await screen.findByText('001-users.sql')
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete' }))
+
+    expect(api.deleteProfile).toHaveBeenCalledWith('local-dev')
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(screen.getByRole('combobox', { name: 'Profile' })).toHaveValue('')
+    expect(screen.getByRole('option', { name: 'No profiles' })).toBeInTheDocument()
+  })
+
+  it('closes confirmation after committed deletion even when refresh fails', async () => {
+    const user = userEvent.setup()
+    const api = fakeApi()
+    api.listProfiles.mockResolvedValueOnce([profile]).mockRejectedValueOnce(new Error('refresh failed'))
+    render(<App api={api as never} />)
+
+    await screen.findByText('001-users.sql')
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(screen.getByRole('option', { name: 'No profiles' })).toBeInTheDocument()
+    expect(screen.getByText('refresh failed')).toBeInTheDocument()
+  })
+
+  it('disables lifecycle actions when no profile is selected', async () => {
+    const api = fakeApi()
+    api.listProfiles.mockResolvedValue([])
+    render(<App api={api as never} />)
+
+    await screen.findByRole('option', { name: 'No profiles' })
+    expect(screen.getByRole('button', { name: 'Clone' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled()
+  })
+
   it('shows the essential runner controls in the main window', () => {
     render(<App />)
 
@@ -223,6 +314,8 @@ describe('main runner workspace', () => {
     const runButton = screen.getByRole('button', { name: 'Run' })
     await user.click(runButton)
     expect(runButton).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Clone' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled()
 
     act(() => {
       api.emitExecutionEvent({
@@ -240,6 +333,8 @@ describe('main runner workspace', () => {
       finishRun?.({ results: [], succeeded: 2, failed: 0, aborted: false })
     })
     await waitFor(() => expect(runButton).not.toBeDisabled())
+    expect(screen.getByRole('button', { name: 'Clone' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeEnabled()
   })
 
   it('opens the repository footer link through the Wails browser runtime', async () => {
