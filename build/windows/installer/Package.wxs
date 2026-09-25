@@ -19,6 +19,10 @@
                   Value="[LocalAppDataFolder]Programs\Go Script SQL Runner"
                   Sequence="both"
                   Condition="MSIINSTALLPERUSER = &quot;1&quot;" />
+    <SetDirectory Id="INSTALLFOLDER"
+                  Value="[ProgramFiles64Folder]Go Script SQL Runner"
+                  Sequence="both"
+                  Condition="MSIINSTALLPERUSER &lt;&gt; &quot;1&quot;" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="Go Script SQL Runner">
@@ -49,12 +53,7 @@
     </Feature>
 
     <UI>
-      <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
-      <Publish Dialog="WelcomeDlg"
-               Control="Next"
-               Event="NewDialog"
-               Value="ScopeSelectionDlg"
-               Order="1">NOT Installed</Publish>
+      <ui:WixUI Id="ScopeInstallDir" InstallDirectory="INSTALLFOLDER" />
     </UI>
   </Package>
 </Wix>

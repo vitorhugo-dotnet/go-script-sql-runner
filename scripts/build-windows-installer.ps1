@@ -61,7 +61,7 @@ try {
 
     & $wixPath build $packageSource $scopeDialogSource `
         --arch x64 `
-        --ext $uiExtensionId `
+        --ext "$uiExtensionId/$uiExtensionVersion" `
         -d "AppVersion=$AppVersion" `
         -d "PortableExecutable=$resolvedExecutable" `
         -o $installerPath
