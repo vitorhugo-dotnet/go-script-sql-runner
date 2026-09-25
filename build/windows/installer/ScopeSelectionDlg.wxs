@@ -1,0 +1,53 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <UI>
+      <Dialog Id="ScopeSelectionDlg"
+              Width="370"
+              Height="270"
+              Title="[ProductName] Setup"
+              NoMinimize="yes">
+        <Control Id="Title"
+                 Type="Text"
+                 X="20"
+                 Y="15"
+                 Width="330"
+                 Height="30"
+                 Transparent="yes"
+                 NoPrefix="yes"
+                 Text="Choose who can use Go Script SQL Runner" />
+        <Control Id="Description"
+                 Type="Text"
+                 X="20"
+                 Y="50"
+                 Width="330"
+                 Height="35"
+                 Transparent="yes"
+                 NoPrefix="yes"
+                 Text="Choose an installation scope. Profiles and logs remain in your Windows user account in either mode." />
+        <Control Id="InstallScope"
+                 Type="RadioButtonGroup"
+                 X="20"
+                 Y="100"
+                 Width="330"
+                 Height="70"
+                 Property="INSTALL_SCOPE">
+          <RadioButtonGroup Property="INSTALL_SCOPE">
+            <RadioButton Value="CurrentUser" X="0" Y="0" Width="320" Height="20" Text="Only for me (recommended; no administrator required)" />
+            <RadioButton Value="AllUsers" X="0" Y="25" Width="320" Height="20" Text="For all users (installs under Program Files; administrator required)" />
+          </RadioButtonGroup>
+        </Control>
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="&amp;Back">
+          <Publish Event="NewDialog" Value="WelcomeDlg">1</Publish>
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="&amp;Next">
+          <Publish Property="MSIINSTALLPERUSER" Value="1">INSTALL_SCOPE = "CurrentUser"</Publish>
+          <Publish Property="MSIINSTALLPERUSER">INSTALL_SCOPE = "AllUsers"</Publish>
+          <Publish Event="NewDialog" Value="LicenseAgreementDlg">1</Publish>
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="Cancel">
+          <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+        </Control>
+      </Dialog>
+    </UI>
+  </Fragment>
+</Wix>

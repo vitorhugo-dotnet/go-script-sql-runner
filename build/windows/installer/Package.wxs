@@ -1,0 +1,60 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Name="Go Script SQL Runner"
+           Manufacturer="Go Script SQL Runner"
+           Version="$(var.AppVersion)"
+           UpgradeCode="{4A6E52B1-7B7B-4B4E-85C4-6B858CA16B37}"
+           Scope="perUserOrMachine"
+           InstallerVersion="500"
+           Compressed="yes">
+    <!-- perUserOrMachine initializes ALLUSERS=2 and MSIINSTALLPERUSER=1. -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Property Id="INSTALL_SCOPE" Value="CurrentUser" Secure="yes" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/vitorhugo-dotnet/go-script-sql-runner" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/vitorhugo-dotnet/go-script-sql-runner" />
+
+    <SetDirectory Id="INSTALLFOLDER"
+                  Value="[LocalAppDataFolder]Programs\Go Script SQL Runner"
+                  Sequence="both"
+                  Condition="MSIINSTALLPERUSER = &quot;1&quot;" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Go Script SQL Runner">
+        <Component Id="PortableApplication" Guid="{D33D284B-C90D-4285-A38D-FDCB81FEAE14}">
+          <File Id="PortableExecutable"
+                Source="$(var.PortableExecutable)"
+                KeyPath="yes" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="Go Script SQL Runner">
+        <Component Id="StartMenuShortcut" Guid="{FA70E3F8-797E-451A-A4AA-E4E4D2D8381F}" KeyPath="yes">
+          <CreateFolder />
+          <Shortcut Id="ApplicationStartMenuShortcut"
+                    Name="Go Script SQL Runner"
+                    Target="[#PortableExecutable]"
+                    WorkingDirectory="INSTALLFOLDER" />
+          <RemoveFolder Id="RemoveApplicationProgramsFolder" On="uninstall" />
+        </Component>
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="Complete" Title="Go Script SQL Runner" Level="1">
+      <ComponentRef Id="PortableApplication" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+
+    <UI>
+      <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+      <Publish Dialog="WelcomeDlg"
+               Control="Next"
+               Event="NewDialog"
+               Value="ScopeSelectionDlg"
+               Order="1">NOT Installed</Publish>
+    </UI>
+  </Package>
+</Wix>

@@ -1,3 +1,9 @@
+param(
+    [Parameter()]
+    [ValidatePattern('^(?:0|[1-9]\d?|1\d\d|2[0-4]\d|25[0-5])\.(?:0|[1-9]\d?|1\d\d|2[0-4]\d|25[0-5])\.(?:0|[1-9]\d?|1\d\d|2[0-4]\d|25[0-5])$')]
+    [string]$AppVersion = '0.1.0'
+)
+
 $ErrorActionPreference = 'Stop'
 
 Push-Location "$PSScriptRoot\.."
@@ -18,14 +24,25 @@ try {
         go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
     }
 
-    wails build -clean -trimpath -webview2 embed -windowsconsole -o go-script-sql-runner.exe
+    wails build -clean -trimpath -webview2 embed -windowsconsole -o go-script-sql-runner-portable.exe
 
-    $output = Join-Path (Get-Location) 'build\bin\go-script-sql-runner.exe'
+    $outputDirectory = Join-Path (Get-Location) 'build\bin'
+    $output = Join-Path $outputDirectory 'go-script-sql-runner-portable.exe'
     if (-not (Test-Path $output)) {
         throw "Expected executable was not produced at $output"
     }
 
-    Write-Host "Build complete: $output"
+    & (Join-Path $PSScriptRoot 'build-windows-installer.ps1') `
+        -AppVersion $AppVersion `
+        -ExecutablePath $output `
+        -OutputDirectory $outputDirectory
+
+    $installer = Join-Path $outputDirectory 'go-script-sql-runner-setup.msi'
+    if (-not (Test-Path $installer)) {
+        throw "Expected installer was not produced at $installer"
+    }
+
+    Write-Host "Build complete: $output and $installer"
 }
 finally {
     Pop-Location
