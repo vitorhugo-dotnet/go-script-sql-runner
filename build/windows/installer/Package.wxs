@@ -16,10 +16,12 @@
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/vitorhugo-dotnet/go-script-sql-runner" />
 
     <SetDirectory Id="INSTALLFOLDER"
+                  Action="SetCurrentUserInstallFolder"
                   Value="[LocalAppDataFolder]Programs\Go Script SQL Runner"
                   Sequence="both"
                   Condition="MSIINSTALLPERUSER = &quot;1&quot;" />
     <SetDirectory Id="INSTALLFOLDER"
+                  Action="SetAllUsersInstallFolder"
                   Value="[ProgramFiles64Folder]Go Script SQL Runner"
                   Sequence="both"
                   Condition="MSIINSTALLPERUSER &lt;&gt; &quot;1&quot;" />
