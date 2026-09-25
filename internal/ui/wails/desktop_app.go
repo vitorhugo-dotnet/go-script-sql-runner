@@ -123,6 +123,22 @@ func (a *DesktopApp) RemoveScript(profileID, scriptID string) error {
 	return a.bridge.RemoveScript(ctx, profileID, scriptID)
 }
 
+func (a *DesktopApp) GetScriptContent(profileID, scriptID string) (string, error) {
+	ctx, err := a.appContext()
+	if err != nil {
+		return "", err
+	}
+	return a.bridge.GetScriptContent(ctx, profileID, scriptID)
+}
+
+func (a *DesktopApp) SaveScriptContent(profileID, scriptID, content string) error {
+	ctx, err := a.appContext()
+	if err != nil {
+		return err
+	}
+	return a.bridge.SaveScriptContent(ctx, profileID, scriptID, content)
+}
+
 func (a *DesktopApp) ReorderScripts(profileID string, orderedIDs []string) (profile.Profile, error) {
 	ctx, err := a.appContext()
 	if err != nil {

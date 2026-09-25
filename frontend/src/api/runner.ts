@@ -20,6 +20,8 @@ interface DesktopBinding {
   AddScriptFromDialog(profileID: string): Promise<Script | null>
   AddScriptsFromDialog(profileID: string): Promise<Script[]>
   RemoveScript(profileID: string, scriptID: string): Promise<void>
+  GetScriptContent(profileID: string, scriptID: string): Promise<string>
+  SaveScriptContent(profileID: string, scriptID: string, content: string): Promise<void>
   ReorderScripts(profileID: string, orderedIDs: string[]): Promise<Profile>
   SetScriptEnabled(profileID: string, scriptID: string, enabled: boolean): Promise<Profile>
   SetScriptTransactionMode(profileID: string, scriptID: string, mode: TransactionMode | ''): Promise<Profile>
@@ -65,6 +67,8 @@ export const wailsRunnerApi: RunnerApi = {
   addScriptFromDialog: (profileID) => desktop().AddScriptFromDialog(profileID),
   addScriptsFromDialog: (profileID) => desktop().AddScriptsFromDialog(profileID),
   removeScript: (profileID, scriptID) => desktop().RemoveScript(profileID, scriptID),
+  getScriptContent: (profileID, scriptID) => desktop().GetScriptContent(profileID, scriptID),
+  saveScriptContent: (profileID, scriptID, content) => desktop().SaveScriptContent(profileID, scriptID, content),
   reorderScripts: (profileID, orderedIDs) => desktop().ReorderScripts(profileID, orderedIDs),
   setScriptEnabled: (profileID, scriptID, enabled) => desktop().SetScriptEnabled(profileID, scriptID, enabled),
   setScriptTransactionMode: (profileID, scriptID, mode) =>

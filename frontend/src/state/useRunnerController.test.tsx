@@ -60,6 +60,8 @@ function fakeApi(overrides: Partial<RunnerApi> = {}) {
     addScriptFromDialog: vi.fn().mockResolvedValue(null),
     addScriptsFromDialog: vi.fn().mockResolvedValue([]),
     removeScript: vi.fn().mockResolvedValue(undefined),
+    getScriptContent: vi.fn().mockResolvedValue('SELECT 1;\n'),
+    saveScriptContent: vi.fn().mockResolvedValue(undefined),
     reorderScripts: vi.fn().mockResolvedValue(firstProfile),
     setScriptEnabled: vi.fn().mockResolvedValue(firstProfile),
     setScriptTransactionMode: vi.fn().mockResolvedValue(firstProfile),
@@ -92,6 +94,82 @@ function fakeApi(overrides: Partial<RunnerApi> = {}) {
 }
 
 describe('useRunnerController', () => {
+  it('loads exact SQL text for a script in the selected profile', async () => {
+    const content = '-- Café\nSELECT 2;\n'
+    const getScriptContent = vi.fn().mockResolvedValue(content)
+    const api = fakeApi({ getScriptContent })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
+    let loaded: string | null = null
+    await act(async () => { loaded = await result.current.loadScriptContent('script-one') })
+
+    expect(loaded).toBe(content)
+    expect(getScriptContent).toHaveBeenCalledWith('first', 'script-one')
+    expect(result.current.error).toBeNull()
+  })
+
+  it('saves SQL text, refreshes the selected profile, and returns true', async () => {
+    const refreshed: Profile = { ...firstProfile, scripts: [{ id: 'script-one', name: 'One', file: 'scripts/one.sql', enabled: true, order: 10 }] }
+    const getProfile = vi.fn().mockResolvedValueOnce(firstProfile).mockResolvedValueOnce(refreshed)
+    const saveScriptContent = vi.fn().mockResolvedValue(undefined)
+    const api = fakeApi({ getProfile, saveScriptContent })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
+    await act(async () => {
+      expect(await result.current.saveScriptContent('script-one', '-- Café\nSELECT 2;\n')).toBe(true)
+    })
+
+    expect(saveScriptContent).toHaveBeenCalledWith('first', 'script-one', '-- Café\nSELECT 2;\n')
+    expect(getProfile).toHaveBeenCalledTimes(2)
+    expect(result.current.selectedProfile).toEqual(refreshed)
+    expect(result.current.error).toBeNull()
+  })
+
+  it('reports a refresh error after a committed script save without turning it into a failed save', async () => {
+    const getProfile = vi.fn().mockResolvedValueOnce(firstProfile).mockRejectedValueOnce(new Error('refresh failed'))
+    const saveScriptContent = vi.fn().mockResolvedValue(undefined)
+    const api = fakeApi({ getProfile, saveScriptContent })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
+    await act(async () => {
+      expect(await result.current.saveScriptContent('script-one', 'changed')).toBe(true)
+    })
+
+    expect(saveScriptContent).toHaveBeenCalledWith('first', 'script-one', 'changed')
+    expect(result.current.selectedProfile).toEqual(firstProfile)
+    expect(result.current.error).toBe('refresh failed')
+  })
+
+  it('reports script content failures without losing the selected profile', async () => {
+    const getScriptContent = vi.fn().mockRejectedValue(new Error('read failed'))
+    const saveScriptContent = vi.fn().mockRejectedValue(new Error('write failed'))
+    const api = fakeApi({ getScriptContent, saveScriptContent })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
+    await act(async () => { expect(await result.current.loadScriptContent('script-one')).toBeNull() })
+    expect(result.current.error).toBe('read failed')
+    await act(async () => { expect(await result.current.saveScriptContent('script-one', 'changed')).toBe(false) })
+    expect(result.current.error).toBe('write failed')
+    expect(result.current.selectedProfile?.id).toBe('first')
+  })
+
+  it('does not call script content APIs when no profile is selected', async () => {
+    const api = fakeApi({ listProfiles: vi.fn().mockResolvedValue([]) })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    await act(async () => {
+      expect(await result.current.loadScriptContent('script-one')).toBeNull()
+      expect(await result.current.saveScriptContent('script-one', 'changed')).toBe(false)
+    })
+    expect(api.getScriptContent).not.toHaveBeenCalled()
+    expect(api.saveScriptContent).not.toHaveBeenCalled()
+  })
+
   it('deletes an explicit profile ID while preserving a different active selection', async () => {
     const listProfiles = vi
       .fn()

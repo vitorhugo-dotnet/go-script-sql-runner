@@ -38,6 +38,8 @@ type ServicePort interface {
 	CloneProfile(context.Context, string) (profile.Profile, error)
 	AddScript(context.Context, string, string) (profile.Script, error)
 	RemoveScript(context.Context, string, string) error
+	GetScriptContent(context.Context, string, string) (string, error)
+	SaveScriptContent(context.Context, string, string, string) error
 	ReorderScripts(context.Context, string, []string) (profile.Profile, error)
 	SetScriptEnabled(context.Context, string, string, bool) (profile.Profile, error)
 	SetScriptTransactionMode(context.Context, string, string, profile.TransactionMode) (profile.Profile, error)
@@ -134,6 +136,14 @@ func (b *Bridge) AddScriptsFromDialog(ctx context.Context, profileID string) ([]
 
 func (b *Bridge) RemoveScript(ctx context.Context, profileID, scriptID string) error {
 	return b.service.RemoveScript(ctx, profileID, scriptID)
+}
+
+func (b *Bridge) GetScriptContent(ctx context.Context, profileID, scriptID string) (string, error) {
+	return b.service.GetScriptContent(ctx, profileID, scriptID)
+}
+
+func (b *Bridge) SaveScriptContent(ctx context.Context, profileID, scriptID, content string) error {
+	return b.service.SaveScriptContent(ctx, profileID, scriptID, content)
 }
 
 func (b *Bridge) ReorderScripts(ctx context.Context, profileID string, orderedIDs []string) (profile.Profile, error) {

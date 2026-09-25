@@ -225,6 +225,34 @@ export function useRunnerController(api: RunnerApi) {
     [api, refreshSelectedProfile, selectedProfile],
   )
 
+  const loadScriptContent = useCallback(async (scriptID: string): Promise<string | null> => {
+    if (!selectedProfile) return null
+    try {
+      setError(null)
+      return await api.getScriptContent(selectedProfile.id, scriptID)
+    } catch (cause) {
+      setError(errorMessage(cause))
+      return null
+    }
+  }, [api, selectedProfile])
+
+  const saveScriptContent = useCallback(async (scriptID: string, content: string): Promise<boolean> => {
+    if (!selectedProfile) return false
+    try {
+      setError(null)
+      await api.saveScriptContent(selectedProfile.id, scriptID, content)
+    } catch (cause) {
+      setError(errorMessage(cause))
+      return false
+    }
+    try {
+      await refreshSelectedProfile()
+    } catch (cause) {
+      setError(errorMessage(cause))
+    }
+    return true
+  }, [api, refreshSelectedProfile, selectedProfile])
+
   const setScriptEnabled = useCallback(
     async (scriptID: string, enabled: boolean) => {
       if (!selectedProfile) return
@@ -374,6 +402,8 @@ export function useRunnerController(api: RunnerApi) {
     addSQLFile: addSQLFiles,
     addSQLFiles,
     removeScript,
+    loadScriptContent,
+    saveScriptContent,
     setScriptEnabled,
     setScriptTransactionMode,
     moveScript,

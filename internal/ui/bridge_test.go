@@ -53,21 +53,66 @@ func (e *fakeEvents) EmitExecutionFinished(_ context.Context, summary executor.S
 }
 
 type fakeService struct {
-	profiles       []profile.Profile
-	deleteID       string
-	deleteCtx      context.Context
-	deleteErr      error
-	cloneID        string
-	cloneCtx       context.Context
-	cloneResult    profile.Profile
-	cloneErr       error
-	archive        profile.ArchiveInspection
-	importConflict bool
-	imports        []bool
-	exportedTo     string
-	addedPath      string
-	addedPaths     []string
-	runStarted     chan struct{}
+	profiles         []profile.Profile
+	contentProfileID string
+	contentScriptID  string
+	contentText      string
+	contentCtx       context.Context
+	contentReadErr   error
+	contentWriteErr  error
+	deleteID         string
+	deleteCtx        context.Context
+	deleteErr        error
+	cloneID          string
+	cloneCtx         context.Context
+	cloneResult      profile.Profile
+	cloneErr         error
+	archive          profile.ArchiveInspection
+	importConflict   bool
+	imports          []bool
+	exportedTo       string
+	addedPath        string
+	addedPaths       []string
+	runStarted       chan struct{}
+}
+
+func (s *fakeService) GetScriptContent(ctx context.Context, profileID, scriptID string) (string, error) {
+	s.contentCtx = ctx
+	s.contentProfileID = profileID
+	s.contentScriptID = scriptID
+	return s.contentText, s.contentReadErr
+}
+
+func (s *fakeService) SaveScriptContent(ctx context.Context, profileID, scriptID, content string) error {
+	s.contentCtx = ctx
+	s.contentProfileID = profileID
+	s.contentScriptID = scriptID
+	s.contentText = content
+	return s.contentWriteErr
+}
+
+func TestScriptContentBridgeForwardsValuesAndErrors(t *testing.T) {
+	ctx := context.WithValue(context.Background(), struct{}{}, "selected")
+	want := "-- Café\nSELECT 2;\n"
+	service := &fakeService{contentText: want}
+	bridge := NewBridge(service, nil, nil)
+	got, err := bridge.GetScriptContent(ctx, "profile-a", "script-b")
+	if err != nil || got != want || service.contentCtx != ctx || service.contentProfileID != "profile-a" || service.contentScriptID != "script-b" {
+		t.Fatalf("GetScriptContent forwarding: got=%q profile=%q script=%q ctx=%v err=%v", got, service.contentProfileID, service.contentScriptID, service.contentCtx, err)
+	}
+	if err := bridge.SaveScriptContent(ctx, "profile-c", "script-d", want); err != nil || service.contentCtx != ctx || service.contentProfileID != "profile-c" || service.contentScriptID != "script-d" || service.contentText != want {
+		t.Fatalf("SaveScriptContent forwarding: profile=%q script=%q content=%q ctx=%v err=%v", service.contentProfileID, service.contentScriptID, service.contentText, service.contentCtx, err)
+	}
+	readErr := errors.New("read failed")
+	writeErr := errors.New("write failed")
+	service.contentReadErr = readErr
+	service.contentWriteErr = writeErr
+	if _, err := bridge.GetScriptContent(ctx, "profile-a", "script-b"); !errors.Is(err, readErr) {
+		t.Fatalf("GetScriptContent error = %v, want %v", err, readErr)
+	}
+	if err := bridge.SaveScriptContent(ctx, "profile-a", "script-b", ""); !errors.Is(err, writeErr) {
+		t.Fatalf("SaveScriptContent error = %v, want %v", err, writeErr)
+	}
 }
 
 func (s *fakeService) CreateProfile(_ context.Context, p profile.Profile) (profile.Profile, error) {
