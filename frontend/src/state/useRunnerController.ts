@@ -132,7 +132,7 @@ export function useRunnerController(api: RunnerApi) {
       setProfiles(loaded)
       const next = loaded.find((profile) => profile.id === expectedSelectionID) ?? loaded[0] ?? null
       if (selectedProfileIDRef.current === expectedSelectionID) {
-        const preserveCurrentSelection = !deletedSelection && next?.id === expectedSelectionID
+        const preserveCurrentSelection = next?.id === expectedSelectionID
         expectedSelectionID = next?.id ?? null
         if (preserveCurrentSelection) setSelectedProfile(next)
         else applySelectedProfile(next)
@@ -141,7 +141,7 @@ export function useRunnerController(api: RunnerApi) {
         const fresh = await api.getProfile(next.id)
         setProfiles((current) => current.map((profile) => (profile.id === fresh.id ? fresh : profile)))
         if (selectedProfileIDRef.current === expectedSelectionID) {
-          if (!deletedSelection && fresh.id === expectedSelectionID) setSelectedProfile(fresh)
+          if (fresh.id === expectedSelectionID) setSelectedProfile(fresh)
           else applySelectedProfile(fresh)
         }
       }
@@ -176,11 +176,11 @@ export function useRunnerController(api: RunnerApi) {
         : [...loaded, cloned]
       setProfiles(withClone)
       if (selectedProfileIDRef.current === expectedSelectionID) {
-        applySelectedProfile(withClone.find((profile) => profile.id === expectedSelectionID) ?? cloned)
+        setSelectedProfile(withClone.find((profile) => profile.id === expectedSelectionID) ?? cloned)
       }
       const fresh = await api.getProfile(cloned.id)
       setProfiles((current) => current.map((profile) => (profile.id === fresh.id ? fresh : profile)))
-      if (selectedProfileIDRef.current === expectedSelectionID) applySelectedProfile(fresh)
+      if (selectedProfileIDRef.current === expectedSelectionID) setSelectedProfile(fresh)
       return fresh
     } catch (cause) {
       setError(errorMessage(cause))

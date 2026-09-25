@@ -405,6 +405,77 @@ describe('useRunnerController', () => {
     expect(result.current.profiles.find((profile) => profile.id === 'second')).toEqual(refreshedSecond)
   })
 
+  it('preserves connection state when clone list and get refreshes return the same selected profile', async () => {
+    const clone: Profile = { ...firstProfile, id: 'clone', name: 'First (copy)' }
+    const listRefresh = deferred<Profile[]>()
+    const cloneRefresh = deferred<Profile>()
+    const listProfiles = vi.fn().mockResolvedValueOnce([firstProfile, secondProfile]).mockReturnValueOnce(listRefresh.promise)
+    const getProfile = vi.fn().mockImplementation((id: string) => id === 'clone' ? cloneRefresh.promise : Promise.resolve(firstProfile))
+    const api = fakeApi({ listProfiles, getProfile, cloneProfile: vi.fn().mockResolvedValue(clone) })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
+    let clonePromise!: Promise<Profile | null>
+    act(() => { clonePromise = result.current.cloneSelectedProfile() })
+    await waitFor(() => expect(listProfiles).toHaveBeenCalledTimes(2))
+    await act(async () => { await result.current.connect() })
+    act(() => result.current.setSelectedSchema('apollo'))
+
+    await act(async () => {
+      listRefresh.resolve([firstProfile, secondProfile, clone])
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(getProfile).toHaveBeenCalledWith('clone'))
+    const schemaAfterListRefresh = result.current.selectedSchema
+    await act(async () => { await result.current.connect() })
+    act(() => result.current.setSelectedSchema('apollo'))
+    await act(async () => {
+      cloneRefresh.resolve(clone)
+      await clonePromise
+    })
+
+    expect(schemaAfterListRefresh).toBe('apollo')
+    expect(result.current.selectedProfile?.id).toBe('clone')
+    expect(result.current.capabilities).toEqual(connectionResult.capabilities)
+    expect(result.current.availableSchemas).toEqual(connectionResult.schemas)
+    expect(result.current.selectedSchema).toBe('apollo')
+  })
+
+  it('preserves connection state when delete list and get refreshes return the same fallback profile', async () => {
+    const listRefresh = deferred<Profile[]>()
+    const fallbackRefresh = deferred<Profile>()
+    const listProfiles = vi.fn().mockResolvedValueOnce([firstProfile, secondProfile]).mockReturnValueOnce(listRefresh.promise)
+    const getProfile = vi.fn().mockImplementation((id: string) => id === 'second' ? fallbackRefresh.promise : Promise.resolve(firstProfile))
+    const api = fakeApi({ listProfiles, getProfile })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
+    let deletePromise!: Promise<boolean>
+    act(() => { deletePromise = result.current.deleteProfile('first') })
+    await waitFor(() => expect(listProfiles).toHaveBeenCalledTimes(2))
+    await act(async () => { await result.current.connect() })
+    act(() => result.current.setSelectedSchema('apollo'))
+
+    await act(async () => {
+      listRefresh.resolve([secondProfile])
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(getProfile).toHaveBeenCalledWith('second'))
+    const schemaAfterListRefresh = result.current.selectedSchema
+    await act(async () => { await result.current.connect() })
+    act(() => result.current.setSelectedSchema('apollo'))
+    await act(async () => {
+      fallbackRefresh.resolve(secondProfile)
+      expect(await deletePromise).toBe(true)
+    })
+
+    expect(schemaAfterListRefresh).toBe('apollo')
+    expect(result.current.selectedProfile?.id).toBe('second')
+    expect(result.current.capabilities).toEqual(connectionResult.capabilities)
+    expect(result.current.availableSchemas).toEqual(connectionResult.schemas)
+    expect(result.current.selectedSchema).toBe('apollo')
+  })
+
   it.each([
     { remaining: [secondProfile], expectedID: 'second' },
     { remaining: [] as Profile[], expectedID: null },
