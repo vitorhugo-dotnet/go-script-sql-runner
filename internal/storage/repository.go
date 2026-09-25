@@ -44,6 +44,16 @@ func (r *Repository) Save(p profile.Profile) error {
 	if err := profile.Validate(p); err != nil {
 		return err
 	}
+	if info, err := os.Lstat(r.ProfileDir(p.ID)); err == nil {
+		if !info.IsDir() {
+			return fmt.Errorf("profile %q path is not a directory", p.ID)
+		}
+		if _, err := r.Get(p.ID); err != nil && !errors.Is(err, ErrNotFound) {
+			return fmt.Errorf("load existing profile %q before save: %w", p.ID, err)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("check existing profile %q: %w", p.ID, err)
+	}
 	if err := r.ensure(); err != nil {
 		return err
 	}
@@ -73,6 +83,9 @@ func (r *Repository) Get(id string) (profile.Profile, error) {
 	p, err := profile.Decode(file)
 	if err != nil {
 		return profile.Profile{}, err
+	}
+	if p.ID != id {
+		return profile.Profile{}, fmt.Errorf("profile id mismatch: requested %q, stored %q", id, p.ID)
 	}
 	return p, nil
 }
@@ -108,6 +121,9 @@ func (r *Repository) List() ([]profile.Profile, error) {
 func (r *Repository) Delete(id string) error {
 	if !validLookupID(id) {
 		return fmt.Errorf("invalid profile id")
+	}
+	if _, err := r.Get(id); err != nil {
+		return fmt.Errorf("load profile %q before delete: %w", id, err)
 	}
 	if err := os.RemoveAll(r.ProfileDir(id)); err != nil {
 		return fmt.Errorf("delete profile: %w", err)

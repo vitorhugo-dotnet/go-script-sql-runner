@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/database"
@@ -87,7 +88,9 @@ func TestCloneProfileCopiesSettingsScriptsAndGeneratesUniqueIDs(t *testing.T) {
 func TestDeleteProfileClosesOnlyMatchingActiveConnection(t *testing.T) {
 	repo := storage.NewRepository(t.TempDir())
 	service := NewService(repo)
-	active, err := service.CreateProfile(context.Background(), lifecycleProfile("Active"))
+	activeInput := lifecycleProfile("Active")
+	activeInput.ID = "case-sensitive"
+	active, err := service.CreateProfile(context.Background(), activeInput)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +118,7 @@ func TestDeleteProfileClosesOnlyMatchingActiveConnection(t *testing.T) {
 	if _, err := repo.Get(other.ID); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatalf("deleted profile Get() error = %v", err)
 	}
-	for _, invalidID := range []string{"../outside", active.ID + ".", active.ID + " "} {
+	for _, invalidID := range []string{"../outside", active.ID + ".", active.ID + " ", strings.ToUpper(active.ID)} {
 		if err := service.DeleteProfile(context.Background(), invalidID); err == nil {
 			t.Fatalf("DeleteProfile(%q) succeeded", invalidID)
 		}

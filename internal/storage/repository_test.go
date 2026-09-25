@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -121,6 +122,44 @@ func TestRepositoryCloneRejectsWindowsAliasIDs(t *testing.T) {
 				t.Fatalf("clone was published from alias: %v", err)
 			}
 		})
+	}
+}
+
+func TestRepositoryRejectsCaseAliasIdentity(t *testing.T) {
+	repo := NewRepository(t.TempDir())
+	source := testProfile()
+	if err := repo.Save(source); err != nil {
+		t.Fatal(err)
+	}
+	alias := strings.ToUpper(source.ID)
+	if _, err := repo.Get(alias); err == nil {
+		t.Fatalf("Get(%q) accepted an alias for %q", alias, source.ID)
+	}
+	clone := source
+	clone.ID = "copy-1"
+	if err := repo.Clone(alias, clone); err == nil {
+		t.Fatalf("Clone(%q) accepted an alias source", alias)
+	}
+	if runtime.GOOS == "windows" {
+		aliasedSave := source
+		aliasedSave.ID = alias
+		if err := repo.Save(aliasedSave); err == nil {
+			t.Fatalf("Save(%q) replaced an existing profile via alias", alias)
+		}
+		aliasedDestination := source
+		aliasedDestination.ID = alias
+		if err := repo.Clone(source.ID, aliasedDestination); err == nil {
+			t.Fatalf("Clone(destination %q) replaced an existing profile via alias", alias)
+		}
+	}
+	if err := repo.Delete(alias); err == nil {
+		t.Fatalf("Delete(%q) accepted an alias for %q", alias, source.ID)
+	}
+	if got, err := repo.Get(source.ID); err != nil || !reflect.DeepEqual(got, source) {
+		t.Fatalf("genuine profile changed after case aliases: %#v, %v", got, err)
+	}
+	if _, err := os.Stat(repo.ProfileDir("copy-1")); !os.IsNotExist(err) {
+		t.Fatalf("clone was published from case alias: %v", err)
 	}
 }
 
