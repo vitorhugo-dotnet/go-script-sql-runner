@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/profile"
@@ -77,7 +78,7 @@ func TestDeleteRejectsInvalidIDs(t *testing.T) {
 	if err := repo.Save(p); err != nil {
 		t.Fatal(err)
 	}
-	for _, id := range []string{"../outside", ".", ""} {
+	for _, id := range []string{"../outside", ".", "", p.ID + ".", p.ID + " ", " " + p.ID, "CON", "nul.txt", "LPT1"} {
 		t.Run(id, func(t *testing.T) {
 			if err := repo.Delete(id); err == nil {
 				t.Fatalf("Delete(%q) succeeded", id)
@@ -86,6 +87,38 @@ func TestDeleteRejectsInvalidIDs(t *testing.T) {
 				if _, err := os.Stat(dir); err != nil {
 					t.Fatalf("Delete(%q) changed %q: %v", id, dir, err)
 				}
+			}
+		})
+	}
+}
+
+func TestRepositoryCloneRejectsWindowsAliasIDs(t *testing.T) {
+	repo := NewRepository(t.TempDir())
+	source := testProfile()
+	if err := repo.Save(source); err != nil {
+		t.Fatal(err)
+	}
+	for _, alias := range []string{source.ID + ".", source.ID + " ", " " + source.ID} {
+		t.Run(alias, func(t *testing.T) {
+			invalid := source
+			invalid.ID = alias
+			if err := repo.Save(invalid); err == nil || !strings.Contains(err.Error(), "invalid profile id") {
+				t.Fatalf("Save(alias %q) error = %v, want invalid profile id", alias, err)
+			}
+			clone := source
+			clone.ID = "copy-1"
+			if err := repo.Clone(alias, clone); err == nil || !strings.Contains(err.Error(), "invalid profile id") {
+				t.Fatalf("Clone(alias source %q) error = %v, want invalid profile id", alias, err)
+			}
+			clone.ID = alias
+			if err := repo.Clone(source.ID, clone); err == nil || !strings.Contains(err.Error(), "invalid profile id") {
+				t.Fatalf("Clone(alias destination %q) error = %v, want invalid profile id", alias, err)
+			}
+			if got, err := repo.Get(source.ID); err != nil || got.ID != source.ID {
+				t.Fatalf("genuine profile changed after clone aliases: %#v, %v", got, err)
+			}
+			if _, err := os.Stat(repo.ProfileDir("copy-1")); !os.IsNotExist(err) {
+				t.Fatalf("clone was published from alias: %v", err)
 			}
 		})
 	}

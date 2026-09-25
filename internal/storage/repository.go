@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -15,6 +16,8 @@ import (
 )
 
 var ErrNotFound = errors.New("profile not found")
+
+var canonicalProfileID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 
 type Repository struct {
 	root string
@@ -35,6 +38,9 @@ func (r *Repository) ensure() error {
 }
 
 func (r *Repository) Save(p profile.Profile) error {
+	if !validLookupID(p.ID) {
+		return fmt.Errorf("invalid profile id")
+	}
 	if err := profile.Validate(p); err != nil {
 		return err
 	}
@@ -341,7 +347,14 @@ func atomicWrite(path string, data []byte, mode os.FileMode) error {
 }
 
 func validLookupID(id string) bool {
-	if id == "" || id == "." || id == ".." {
+	if !canonicalProfileID.MatchString(id) || strings.HasSuffix(id, ".") {
+		return false
+	}
+	stem := strings.ToUpper(strings.SplitN(id, ".", 2)[0])
+	if stem == "CON" || stem == "PRN" || stem == "AUX" || stem == "NUL" {
+		return false
+	}
+	if len(stem) == 4 && (stem[:3] == "COM" || stem[:3] == "LPT") && stem[3] >= '1' && stem[3] <= '9' {
 		return false
 	}
 	return filepath.Base(id) == id && filepath.Clean(id) == id

@@ -46,9 +46,7 @@ func (s *Service) DeleteProfile(ctx context.Context, profileID string) error {
 		client := s.activeClient
 		s.activeClient = nil
 		s.activeProfileID = ""
-		if err := client.Close(); err != nil {
-			return fmt.Errorf("close connection for deleted profile %q: %w", profileID, err)
-		}
+		_ = client.Close()
 	}
 	return nil
 }

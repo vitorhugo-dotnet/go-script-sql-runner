@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"os"
 	"path/filepath"
@@ -21,6 +22,21 @@ func lifecycleProfile(name string) profile.Profile {
 		Execution:  profile.Execution{OnError: profile.OnErrorStop, TransactionMode: profile.TransactionRunnerManaged},
 	}
 }
+
+type closeFailConn struct {
+	recordingConn
+	err error
+}
+
+func (c *closeFailConn) Close() error {
+	_ = c.recordingConn.Close()
+	return c.err
+}
+
+type closeFailConnector struct{ conn *closeFailConn }
+
+func (c closeFailConnector) Connect(context.Context) (driver.Conn, error) { return c.conn, nil }
+func (c closeFailConnector) Driver() driver.Driver                        { return recordingDriver{} }
 
 func TestCloneProfileCopiesSettingsScriptsAndGeneratesUniqueIDs(t *testing.T) {
 	repo := storage.NewRepository(t.TempDir())
@@ -99,11 +115,16 @@ func TestDeleteProfileClosesOnlyMatchingActiveConnection(t *testing.T) {
 	if _, err := repo.Get(other.ID); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatalf("deleted profile Get() error = %v", err)
 	}
-	if err := service.DeleteProfile(context.Background(), "../outside"); err == nil {
-		t.Fatal("DeleteProfile(invalid ID) succeeded")
-	}
-	if recorded.closed != 0 || service.activeClient == nil {
-		t.Fatal("failed deletion changed active connection")
+	for _, invalidID := range []string{"../outside", active.ID + ".", active.ID + " "} {
+		if err := service.DeleteProfile(context.Background(), invalidID); err == nil {
+			t.Fatalf("DeleteProfile(%q) succeeded", invalidID)
+		}
+		if recorded.closed != 0 || service.activeClient == nil {
+			t.Fatalf("failed deletion of %q changed active connection", invalidID)
+		}
+		if got, err := repo.Get(active.ID); err != nil || got.ID != active.ID {
+			t.Fatalf("active profile after invalid deletion = %#v, %v", got, err)
+		}
 	}
 	if err := service.DeleteProfile(context.Background(), active.ID); err != nil {
 		t.Fatalf("DeleteProfile(active) error: %v", err)
@@ -113,6 +134,36 @@ func TestDeleteProfileClosesOnlyMatchingActiveConnection(t *testing.T) {
 	}
 	if _, err := repo.Get(active.ID); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatalf("active profile Get() error = %v", err)
+	}
+}
+
+func TestDeleteProfileSucceedsWhenConnectionCloseFails(t *testing.T) {
+	repo := storage.NewRepository(t.TempDir())
+	service := NewService(repo)
+	p, err := service.CreateProfile(context.Background(), lifecycleProfile("Close failure"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	closeErr := errors.New("close failed")
+	conn := &closeFailConn{err: closeErr}
+	service.connectServer = func(ctx context.Context, _ profile.Connection) (*database.Client, database.ConnectionResult, error) {
+		db := sql.OpenDB(closeFailConnector{conn: conn})
+		if err := db.PingContext(ctx); err != nil {
+			return nil, database.ConnectionResult{}, err
+		}
+		return &database.Client{DB: db}, database.ConnectionResult{}, nil
+	}
+	if _, err := service.Connect(context.Background(), p.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.DeleteProfile(context.Background(), p.ID); err != nil {
+		t.Fatalf("DeleteProfile() returned a close error after deleting profile: %v", err)
+	}
+	if _, err := repo.Get(p.ID); !errors.Is(err, storage.ErrNotFound) {
+		t.Fatalf("deleted profile Get() error = %v", err)
+	}
+	if conn.closed != 1 || service.activeClient != nil || service.activeProfileID != "" {
+		t.Fatalf("connection state after deletion: closes=%d client=%#v id=%q", conn.closed, service.activeClient, service.activeProfileID)
 	}
 }
 
