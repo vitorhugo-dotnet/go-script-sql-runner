@@ -41,8 +41,10 @@
         </Control>
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="&amp;Next">
           <Publish Property="MSIINSTALLPERUSER" Value="1" Order="1">INSTALL_SCOPE = "CurrentUser"</Publish>
+          <Publish Property="INSTALLFOLDER" Value="[LocalAppDataFolder]Programs\Go Script SQL Runner" Order="2">INSTALL_SCOPE = "CurrentUser"</Publish>
           <Publish Property="MSIINSTALLPERUSER" Value="" Order="1">INSTALL_SCOPE = "AllUsers"</Publish>
-          <Publish Event="NewDialog" Value="LicenseAgreementDlg" Order="2">1</Publish>
+          <Publish Property="INSTALLFOLDER" Value="[ProgramFiles64Folder]Go Script SQL Runner" Order="2">INSTALL_SCOPE = "AllUsers"</Publish>
+          <Publish Event="NewDialog" Value="LicenseAgreementDlg" Order="3">1</Publish>
         </Control>
         <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="Cancel">
           <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
