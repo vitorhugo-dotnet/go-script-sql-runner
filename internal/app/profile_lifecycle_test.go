@@ -116,6 +116,44 @@ func TestDeleteProfileClosesOnlyMatchingActiveConnection(t *testing.T) {
 	}
 }
 
+func TestConnectDoesNotPublishAfterProfileDeletion(t *testing.T) {
+	repo := storage.NewRepository(t.TempDir())
+	service := NewService(repo)
+	p, err := service.CreateProfile(context.Background(), lifecycleProfile("Concurrent"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := make(chan struct{})
+	release := make(chan struct{})
+	recorded := &recordingConn{}
+	service.connectServer = func(ctx context.Context, _ profile.Connection) (*database.Client, database.ConnectionResult, error) {
+		close(started)
+		<-release
+		db := sql.OpenDB(recordingConnector{conn: recorded})
+		if err := db.PingContext(ctx); err != nil {
+			return nil, database.ConnectionResult{}, err
+		}
+		return &database.Client{DB: db}, database.ConnectionResult{}, nil
+	}
+	connected := make(chan error, 1)
+	go func() {
+		_, err := service.Connect(context.Background(), p.ID)
+		connected <- err
+	}()
+	<-started
+	if err := service.DeleteProfile(context.Background(), p.ID); err != nil {
+		close(release)
+		t.Fatalf("DeleteProfile() error: %v", err)
+	}
+	close(release)
+	if err := <-connected; !errors.Is(err, storage.ErrNotFound) {
+		t.Fatalf("Connect() after deletion error = %v, want ErrNotFound", err)
+	}
+	if service.activeClient != nil || service.activeProfileID != "" || recorded.closed != 1 {
+		t.Fatalf("deleted profile reconnected: client=%#v id=%q closes=%d", service.activeClient, service.activeProfileID, recorded.closed)
+	}
+}
+
 func TestProfileLifecycleCancelledContextDoesNotMutate(t *testing.T) {
 	repo := storage.NewRepository(t.TempDir())
 	service := NewService(repo)
