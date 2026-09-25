@@ -35,7 +35,7 @@ Use the reproducible build script:
 .\scripts\build.ps1
 ```
 
-It runs Go tests, installs the locked frontend dependencies with `npm ci`, runs frontend tests/build, and builds the Wails executable with the embedded WebView2 bootstrapper.
+It runs Go tests, installs the locked frontend dependencies with `npm ci`, runs frontend tests/build, and builds both the portable Wails executable with the embedded WebView2 bootstrapper and the MSI wizard installer.
 
 Output:
 
