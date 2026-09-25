@@ -99,6 +99,81 @@ func TestScriptContentRejectsUnknownOrInvalidReferences(t *testing.T) {
 	}
 }
 
+func TestScriptContentMissingFileIsNotRecreated(t *testing.T) {
+	repo, p, filename := scriptContentRepository(t)
+	metadataPath := filepath.Join(repo.ProfileDir(p.ID), "profile.yaml")
+	metadataBefore, err := os.ReadFile(metadataPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filename); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.ReadScriptContent(p.ID, "one"); err == nil {
+		t.Fatal("ReadScriptContent succeeded after SQL file removal")
+	}
+	if err := repo.WriteScriptContent(p.ID, "one", "replacement"); err == nil {
+		t.Fatal("WriteScriptContent recreated the removed SQL file")
+	}
+	if _, err := os.Lstat(filename); !os.IsNotExist(err) {
+		t.Fatalf("removed SQL file was recreated: %v", err)
+	}
+	metadataAfter, err := os.ReadFile(metadataPath)
+	if err != nil || !bytes.Equal(metadataAfter, metadataBefore) {
+		t.Fatalf("metadata changed after missing-file operations: %v", err)
+	}
+}
+
+func TestScriptContentAtomicWriteFailurePreservesData(t *testing.T) {
+	repo, p, filename := scriptContentRepository(t)
+	metadataPath := filepath.Join(repo.ProfileDir(p.ID), "profile.yaml")
+	metadataBefore, err := os.ReadFile(metadataPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	originalSQL, err := os.ReadFile(filename)
+	if err != nil {
+		t.Fatal(err)
+	}
+	originalBackup := filename + ".original"
+	if err := os.Rename(filename, originalBackup); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filename, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	containedFile := filepath.Join(filename, "original.sql")
+	if err := os.WriteFile(containedFile, originalSQL, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.WriteScriptContent(p.ID, "one", "replacement"); err == nil {
+		t.Fatal("WriteScriptContent replaced a non-regular target")
+	}
+	// The resolver rejects a directory target; exercise the writer's rename failure directly.
+	if err := atomicWrite(filename, []byte("replacement"), 0o600); err == nil {
+		t.Fatal("atomicWrite replaced a non-empty directory")
+	}
+	for _, original := range []string{originalBackup, containedFile} {
+		data, err := os.ReadFile(original)
+		if err != nil || !bytes.Equal(data, originalSQL) {
+			t.Fatalf("original SQL at %q changed after failed atomic write: %q, %v", original, data, err)
+		}
+	}
+	metadataAfter, err := os.ReadFile(metadataPath)
+	if err != nil || !bytes.Equal(metadataAfter, metadataBefore) {
+		t.Fatalf("metadata changed after failed atomic write: %v", err)
+	}
+	entries, err := os.ReadDir(repo.ScriptRoot(p.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".runner-") {
+			t.Fatalf("temporary atomic-write file remains: %q", entry.Name())
+		}
+	}
+}
+
 func TestScriptContentRejectsSymlinksAndNonRegularFiles(t *testing.T) {
 	repo, p, path := scriptContentRepository(t)
 	outside := filepath.Join(t.TempDir(), "outside.sql")
