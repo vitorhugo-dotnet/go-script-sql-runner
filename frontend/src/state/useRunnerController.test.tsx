@@ -45,8 +45,12 @@ const connectionResult = {
 
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((done) => { resolve = done })
-  return { promise, resolve }
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((done, fail) => {
+    resolve = done
+    reject = fail
+  })
+  return { promise, resolve, reject }
 }
 
 function fakeApi(overrides: Partial<RunnerApi> = {}) {
@@ -100,6 +104,31 @@ function fakeApi(overrides: Partial<RunnerApi> = {}) {
 }
 
 describe('useRunnerController', () => {
+  it('does not report a failed stale profile selection after a newer selection succeeds', async () => {
+    const staleSelection = deferred<Profile>()
+    const getProfile = vi.fn().mockImplementation((id: string) => {
+      if (id === 'stale') return staleSelection.promise
+      return Promise.resolve(id === 'second' ? secondProfile : firstProfile)
+    })
+    const api = fakeApi({ getProfile })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
+    let stalePromise!: Promise<void>
+    act(() => { stalePromise = result.current.selectProfile('stale') })
+    await waitFor(() => expect(getProfile).toHaveBeenCalledWith('stale'))
+    await act(async () => { await result.current.selectProfile('second') })
+    expect(result.current.selectedProfile?.id).toBe('second')
+
+    await act(async () => {
+      staleSelection.reject(new Error('stale selection failed'))
+      await stalePromise
+    })
+
+    expect(result.current.selectedProfile?.id).toBe('second')
+    expect(result.current.error).toBeNull()
+  })
+
   it('loads exact SQL text for a script in the selected profile', async () => {
     const content = '-- Café\nSELECT 2;\n'
     const getScriptContent = vi.fn().mockResolvedValue(content)

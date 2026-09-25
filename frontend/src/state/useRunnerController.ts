@@ -64,8 +64,8 @@ export function useRunnerController(api: RunnerApi) {
       } catch (cause) {
         if (selectedProfileIDRef.current === profileID) {
           selectedProfileIDRef.current = selectedProfile?.id ?? null
+          setError(errorMessage(cause))
         }
-        setError(errorMessage(cause))
       }
     },
     [api, applySelectedProfile, selectedProfile],
