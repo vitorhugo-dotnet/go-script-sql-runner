@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -10,6 +11,154 @@ import (
 
 	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/profile"
 )
+
+func scriptContentRepository(t *testing.T) (*Repository, profile.Profile, string) {
+	t.Helper()
+	repo := NewRepository(t.TempDir())
+	p := testProfile()
+	p.Scripts = []profile.Script{{ID: "one", Name: "One", File: "scripts/one.sql", Enabled: true, Order: 10}}
+	if err := repo.Save(p); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(repo.ScriptRoot(p.ID), "one.sql")
+	if err := os.WriteFile(path, []byte("SELECT 1;\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return repo, p, path
+}
+
+func TestScriptContentRoundTripPreservesMetadata(t *testing.T) {
+	repo, before, path := scriptContentRepository(t)
+	metadataBefore, err := os.ReadFile(filepath.Join(repo.ProfileDir(before.ID), "profile.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := repo.ReadScriptContent(before.ID, "one")
+	if err != nil || got != "SELECT 1;\n" {
+		t.Fatalf("ReadScriptContent() = %q, %v", got, err)
+	}
+	for _, content := range []string{"-- Café\nSELECT 2;\n", ""} {
+		if err := repo.WriteScriptContent(before.ID, "one", content); err != nil {
+			t.Fatalf("WriteScriptContent(%q): %v", content, err)
+		}
+		got, err := repo.ReadScriptContent(before.ID, "one")
+		if err != nil || got != content {
+			t.Fatalf("ReadScriptContent() = %q, %v; want %q", got, err, content)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil || string(data) != content {
+			t.Fatalf("SQL bytes = %q, %v; want %q", data, err, content)
+		}
+		metadataAfter, err := os.ReadFile(filepath.Join(repo.ProfileDir(before.ID), "profile.yaml"))
+		if err != nil || !bytes.Equal(metadataAfter, metadataBefore) {
+			t.Fatalf("metadata changed after content write: %v", err)
+		}
+		stored, err := repo.Get(before.ID)
+		if err != nil || !reflect.DeepEqual(stored, before) {
+			t.Fatalf("profile changed after content write: %#v, %v", stored, err)
+		}
+	}
+}
+
+func TestScriptContentRejectsUnknownOrInvalidReferences(t *testing.T) {
+	repo, p, path := scriptContentRepository(t)
+	for _, tc := range []struct{ profileID, scriptID string }{
+		{"missing-profile", "one"}, {p.ID, ""}, {p.ID, "missing"},
+	} {
+		if _, err := repo.ReadScriptContent(tc.profileID, tc.scriptID); err == nil {
+			t.Fatalf("ReadScriptContent(%q, %q) succeeded", tc.profileID, tc.scriptID)
+		}
+		if err := repo.WriteScriptContent(tc.profileID, tc.scriptID, "changed"); err == nil {
+			t.Fatalf("WriteScriptContent(%q, %q) succeeded", tc.profileID, tc.scriptID)
+		}
+	}
+	if data, err := os.ReadFile(path); err != nil || string(data) != "SELECT 1;\n" {
+		t.Fatalf("original SQL changed: %q, %v", data, err)
+	}
+
+	metadataPath := filepath.Join(repo.ProfileDir(p.ID), "profile.yaml")
+	metadata, err := os.ReadFile(metadataPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	malformed := bytes.Replace(metadata, []byte("scripts/one.sql"), []byte("../escape.sql"), 1)
+	if bytes.Equal(malformed, metadata) {
+		t.Fatal("could not mutate fixture metadata")
+	}
+	if err := os.WriteFile(metadataPath, malformed, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.ReadScriptContent(p.ID, "one"); err == nil {
+		t.Fatal("ReadScriptContent accepted escaping metadata")
+	}
+	if err := repo.WriteScriptContent(p.ID, "one", "changed"); err == nil {
+		t.Fatal("WriteScriptContent accepted escaping metadata")
+	}
+	if data, err := os.ReadFile(path); err != nil || string(data) != "SELECT 1;\n" {
+		t.Fatalf("original SQL changed: %q, %v", data, err)
+	}
+}
+
+func TestScriptContentRejectsSymlinksAndNonRegularFiles(t *testing.T) {
+	repo, p, path := scriptContentRepository(t)
+	outside := filepath.Join(t.TempDir(), "outside.sql")
+	if err := os.WriteFile(outside, []byte("outside"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, path); err != nil {
+		t.Logf("symlinks unavailable: %v", err)
+	} else {
+		if _, err := repo.ReadScriptContent(p.ID, "one"); err == nil {
+			t.Fatal("ReadScriptContent followed a symlink")
+		}
+		if err := repo.WriteScriptContent(p.ID, "one", "changed"); err == nil {
+			t.Fatal("WriteScriptContent replaced a symlink")
+		}
+		if data, err := os.ReadFile(outside); err != nil || string(data) != "outside" {
+			t.Fatalf("outside file changed: %q, %v", data, err)
+		}
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Mkdir(path, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.ReadScriptContent(p.ID, "one"); err == nil {
+		t.Fatal("ReadScriptContent accepted a directory")
+	}
+	if err := repo.WriteScriptContent(p.ID, "one", "changed"); err == nil {
+		t.Fatal("WriteScriptContent accepted a directory")
+	}
+}
+
+func TestScriptContentRejectsSymlinkedDirectory(t *testing.T) {
+	repo, p, _ := scriptContentRepository(t)
+	p.Scripts[0].File = "scripts/nested/one.sql"
+	if err := repo.Save(p); err != nil {
+		t.Fatal(err)
+	}
+	outside := t.TempDir()
+	outsideFile := filepath.Join(outside, "one.sql")
+	if err := os.WriteFile(outsideFile, []byte("outside"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(repo.ScriptRoot(p.ID), "nested")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if _, err := repo.ReadScriptContent(p.ID, "one"); err == nil {
+		t.Fatal("ReadScriptContent followed a symlinked directory")
+	}
+	if err := repo.WriteScriptContent(p.ID, "one", "changed"); err == nil {
+		t.Fatal("WriteScriptContent followed a symlinked directory")
+	}
+	if data, err := os.ReadFile(outsideFile); err != nil || string(data) != "outside" {
+		t.Fatalf("outside file changed: %q, %v", data, err)
+	}
+}
 
 func testProfile() profile.Profile {
 	return profile.Profile{

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -327,6 +328,82 @@ func (r *Repository) ReorderScripts(profileID string, orderedIDs []string) error
 		script.Order = (i + 1) * 10
 	}
 	return r.Save(p)
+}
+
+func (r *Repository) ReadScriptContent(profileID, scriptID string) (string, error) {
+	filename, err := r.scriptContentPath(profileID, scriptID)
+	if err != nil {
+		return "", err
+	}
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return "", fmt.Errorf("read script %q: %w", scriptID, err)
+	}
+	return string(data), nil
+}
+
+func (r *Repository) WriteScriptContent(profileID, scriptID, content string) error {
+	filename, err := r.scriptContentPath(profileID, scriptID)
+	if err != nil {
+		return err
+	}
+	if err := atomicWrite(filename, []byte(content), 0o600); err != nil {
+		return fmt.Errorf("write script %q: %w", scriptID, err)
+	}
+	return nil
+}
+
+func (r *Repository) scriptContentPath(profileID, scriptID string) (string, error) {
+	p, err := r.Get(profileID)
+	if err != nil {
+		return "", fmt.Errorf("get profile %q: %w", profileID, err)
+	}
+	var reference string
+	for _, script := range p.Scripts {
+		if script.ID == scriptID {
+			reference = script.File
+			break
+		}
+	}
+	if reference == "" {
+		return "", fmt.Errorf("script %q not found in profile %q", scriptID, profileID)
+	}
+	if strings.Contains(reference, `\`) || strings.Contains(reference, ":") || path.Clean(reference) != reference || !strings.HasPrefix(reference, "scripts/") {
+		return "", fmt.Errorf("script %q has an invalid file reference", scriptID)
+	}
+	components := strings.Split(reference, "/")
+	for _, component := range components {
+		if component == "" || component == "." || component == ".." || strings.TrimRight(component, ". ") != component {
+			return "", fmt.Errorf("script %q has an invalid file reference", scriptID)
+		}
+	}
+	profileDir := r.ProfileDir(profileID)
+	filename := filepath.Join(profileDir, filepath.FromSlash(reference))
+	rel, err := filepath.Rel(r.ScriptRoot(profileID), filename)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("script %q escapes profile scripts directory", scriptID)
+	}
+	current := profileDir
+	for index := 0; index <= len(components); index++ {
+		if index != 0 {
+			current = filepath.Join(current, components[index-1])
+		}
+		info, err := os.Lstat(current)
+		if err != nil {
+			return "", fmt.Errorf("stat script %q path: %w", scriptID, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return "", fmt.Errorf("script %q path contains a symlink", scriptID)
+		}
+		if index == len(components) {
+			if !info.Mode().IsRegular() {
+				return "", fmt.Errorf("script %q is not a regular file", scriptID)
+			}
+		} else if !info.IsDir() {
+			return "", fmt.Errorf("script %q path contains a non-directory", scriptID)
+		}
+	}
+	return filename, nil
 }
 
 func atomicWrite(path string, data []byte, mode os.FileMode) error {
