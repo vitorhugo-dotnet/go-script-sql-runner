@@ -2,6 +2,7 @@ package storage
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -135,29 +136,24 @@ func TestScriptContentAtomicWriteFailurePreservesData(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	originalBackup := filename + ".original"
-	if err := os.Rename(filename, originalBackup); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Mkdir(filename, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	containedFile := filepath.Join(filename, "original.sql")
-	if err := os.WriteFile(containedFile, originalSQL, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := repo.WriteScriptContent(p.ID, "one", "replacement"); err == nil {
-		t.Fatal("WriteScriptContent replaced a non-regular target")
-	}
-	// The resolver rejects a directory target; exercise the writer's rename failure directly.
-	if err := atomicWrite(filename, []byte("replacement"), 0o600); err == nil {
-		t.Fatal("atomicWrite replaced a non-empty directory")
-	}
-	for _, original := range []string{originalBackup, containedFile} {
-		data, err := os.ReadFile(original)
-		if err != nil || !bytes.Equal(data, originalSQL) {
-			t.Fatalf("original SQL at %q changed after failed atomic write: %q, %v", original, data, err)
+	renameFailure := errors.New("injected rename failure")
+	originalRename := atomicRename
+	atomicRename = func(source, destination string) error {
+		if destination != filename {
+			return originalRename(source, destination)
 		}
+		if _, err := os.Stat(source); err != nil {
+			t.Fatalf("atomic temporary file missing before rename: %v", err)
+		}
+		return renameFailure
+	}
+	t.Cleanup(func() { atomicRename = originalRename })
+	if err := repo.WriteScriptContent(p.ID, "one", "replacement"); !errors.Is(err, renameFailure) {
+		t.Fatalf("WriteScriptContent() error = %v, want injected rename failure", err)
+	}
+	data, err := os.ReadFile(filename)
+	if err != nil || !bytes.Equal(data, originalSQL) {
+		t.Fatalf("original SQL changed after failed repository save: %q, %v", data, err)
 	}
 	metadataAfter, err := os.ReadFile(metadataPath)
 	if err != nil || !bytes.Equal(metadataAfter, metadataBefore) {

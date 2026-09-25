@@ -406,6 +406,8 @@ func (r *Repository) scriptContentPath(profileID, scriptID string) (string, erro
 	return filename, nil
 }
 
+var atomicRename = os.Rename
+
 func atomicWrite(path string, data []byte, mode os.FileMode) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -433,7 +435,7 @@ func atomicWrite(path string, data []byte, mode os.FileMode) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	if err := os.Rename(tmpName, path); err != nil {
+	if err := atomicRename(tmpName, path); err != nil {
 		return err
 	}
 	return nil
