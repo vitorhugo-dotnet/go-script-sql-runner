@@ -34,6 +34,13 @@ describe('ProfileDeleteDialog', () => {
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
 
+  it('renders a delete failure as an alert inside the confirmation dialog', () => {
+    render(<ProfileDeleteDialog open profileName="Production" error="delete failed" onCancel={vi.fn()} onConfirm={vi.fn()} />)
+
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete profile' })
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('delete failed')
+  })
+
   it('focuses Cancel, keeps focus inside, and makes the background inert', async () => {
     const user = userEvent.setup()
     const { container } = render(

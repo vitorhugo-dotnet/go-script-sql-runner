@@ -9,6 +9,7 @@ interface ScriptEditorDialogProps {
   scriptName: string
   initialContent: string
   saving: boolean
+  error?: string | null
   onCancel: () => void
   onSave: (content: string) => Promise<boolean>
 }
@@ -38,6 +39,7 @@ export default function ScriptEditorDialog({
   scriptName,
   initialContent,
   saving,
+  error,
   onCancel,
   onSave,
 }: ScriptEditorDialogProps) {
@@ -129,6 +131,7 @@ export default function ScriptEditorDialog({
             ×
           </button>
         </div>
+        {error && <div role="alert" className="border-b border-red-900/70 bg-red-950/50 px-4 py-2 text-xs text-red-200">{error}</div>}
         <div className="min-h-[420px] flex-1 border-b border-slate-800">
           <Editor
             height="420px"

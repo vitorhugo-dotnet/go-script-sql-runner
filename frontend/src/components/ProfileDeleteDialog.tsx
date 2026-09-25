@@ -4,11 +4,12 @@ import { createPortal } from 'react-dom'
 interface ProfileDeleteDialogProps {
   open: boolean
   profileName: string
+  error?: string | null
   onCancel: () => void
   onConfirm: () => Promise<void>
 }
 
-export default function ProfileDeleteDialog({ open, profileName, onCancel, onConfirm }: ProfileDeleteDialogProps) {
+export default function ProfileDeleteDialog({ open, profileName, error, onCancel, onConfirm }: ProfileDeleteDialogProps) {
   const [deleting, setDeleting] = useState(false)
   const [portal] = useState(() => document.createElement('div'))
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -84,6 +85,7 @@ export default function ProfileDeleteDialog({ open, profileName, onCancel, onCon
         <p id="profile-delete-description" className="mt-2 text-sm text-slate-300">
           Delete <strong className="text-slate-100">{profileName}</strong>? Its stored scripts will be removed with it.
         </p>
+        {error && <p role="alert" className="mt-3 text-sm text-red-300">{error}</p>}
         <div className="mt-5 flex justify-end gap-2">
           <button
             ref={cancelRef}

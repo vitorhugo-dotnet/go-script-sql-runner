@@ -52,6 +52,13 @@ describe('ScriptEditorDialog', () => {
     expect(screen.getByRole('dialog', { name: 'Edit 001-users.sql' })).toBeInTheDocument()
   })
 
+  it('renders a save failure as an alert inside the editor dialog', () => {
+    render(<ScriptEditorDialog {...baseProps} error="save failed" onSave={vi.fn()} onCancel={vi.fn()} />)
+
+    const dialog = screen.getByRole('dialog', { name: 'Edit 001-users.sql' })
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('save failed')
+  })
+
   it('disables Save while saving and cancels a clean editor immediately', async () => {
     const user = userEvent.setup()
     const onSave = vi.fn().mockResolvedValue(true)

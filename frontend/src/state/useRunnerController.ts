@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   ExecutionEvent,
   OnError,
@@ -26,6 +26,9 @@ export function useRunnerController(api: RunnerApi) {
   const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const selectedProfileIDRef = useRef<string | null>(null)
+
+  const clearError = useCallback(() => setError(null), [])
 
   const clearConnectionState = useCallback(() => {
     setCapabilities(null)
@@ -35,6 +38,7 @@ export function useRunnerController(api: RunnerApi) {
 
   const applySelectedProfile = useCallback(
     (profile: Profile | null) => {
+      selectedProfileIDRef.current = profile?.id ?? null
       setSelectedProfile(profile)
       clearConnectionState()
       if (profile) {
@@ -52,15 +56,19 @@ export function useRunnerController(api: RunnerApi) {
         return
       }
 
+      selectedProfileIDRef.current = profileID
       try {
         setError(null)
         const profile = await api.getProfile(profileID)
-        applySelectedProfile(profile)
+        if (selectedProfileIDRef.current === profileID) applySelectedProfile(profile)
       } catch (cause) {
+        if (selectedProfileIDRef.current === profileID) {
+          selectedProfileIDRef.current = selectedProfile?.id ?? null
+        }
         setError(errorMessage(cause))
       }
     },
-    [api, applySelectedProfile],
+    [api, applySelectedProfile, selectedProfile],
   )
 
   const loadProfiles = useCallback(async () => {
@@ -115,33 +123,33 @@ export function useRunnerController(api: RunnerApi) {
     }
 
     const remaining = profiles.filter((profile) => profile.id !== profileID)
-    const deletedSelection = selectedProfile?.id === profileID
+    const deletedSelection = selectedProfileIDRef.current === profileID
     setProfiles(remaining)
     if (deletedSelection) applySelectedProfile(remaining[0] ?? null)
+    let expectedSelectionID = selectedProfileIDRef.current
     try {
       const loaded = (await api.listProfiles()).filter((profile) => profile.id !== profileID)
       setProfiles(loaded)
-      const next = deletedSelection
-        ? loaded[0] ?? null
-        : loaded.find((profile) => profile.id === selectedProfile?.id) ?? loaded[0] ?? null
-      if (next?.id === selectedProfile?.id && !deletedSelection) {
-        setSelectedProfile(next)
-      } else {
-        applySelectedProfile(next)
+      const next = loaded.find((profile) => profile.id === expectedSelectionID) ?? loaded[0] ?? null
+      if (selectedProfileIDRef.current === expectedSelectionID) {
+        const preserveCurrentSelection = !deletedSelection && next?.id === expectedSelectionID
+        expectedSelectionID = next?.id ?? null
+        if (preserveCurrentSelection) setSelectedProfile(next)
+        else applySelectedProfile(next)
       }
       if (next) {
         const fresh = await api.getProfile(next.id)
-        if (fresh.id === selectedProfile?.id && !deletedSelection) {
-          setSelectedProfile(fresh)
-        } else {
-          applySelectedProfile(fresh)
+        setProfiles((current) => current.map((profile) => (profile.id === fresh.id ? fresh : profile)))
+        if (selectedProfileIDRef.current === expectedSelectionID) {
+          if (!deletedSelection && fresh.id === expectedSelectionID) setSelectedProfile(fresh)
+          else applySelectedProfile(fresh)
         }
       }
     } catch (cause) {
       setError(errorMessage(cause))
     }
     return true
-  }, [api, applySelectedProfile, profiles, selectedProfile])
+  }, [api, applySelectedProfile, profiles])
 
   const deleteSelectedProfile = useCallback(async (): Promise<boolean> => {
     return selectedProfile ? deleteProfile(selectedProfile.id) : false
@@ -160,15 +168,19 @@ export function useRunnerController(api: RunnerApi) {
 
     setProfiles((current) => [...current.filter((profile) => profile.id !== cloned.id), cloned])
     applySelectedProfile(cloned)
+    const expectedSelectionID = cloned.id
     try {
       const loaded = await api.listProfiles()
       const withClone = loaded.some((profile) => profile.id === cloned.id)
         ? loaded.map((profile) => (profile.id === cloned.id ? cloned : profile))
         : [...loaded, cloned]
       setProfiles(withClone)
+      if (selectedProfileIDRef.current === expectedSelectionID) {
+        applySelectedProfile(withClone.find((profile) => profile.id === expectedSelectionID) ?? cloned)
+      }
       const fresh = await api.getProfile(cloned.id)
       setProfiles((current) => current.map((profile) => (profile.id === fresh.id ? fresh : profile)))
-      applySelectedProfile(fresh)
+      if (selectedProfileIDRef.current === expectedSelectionID) applySelectedProfile(fresh)
       return fresh
     } catch (cause) {
       setError(errorMessage(cause))
@@ -391,6 +403,7 @@ export function useRunnerController(api: RunnerApi) {
     loading,
     running,
     error,
+    clearError,
     loadProfiles,
     selectProfile,
     saveProfile,

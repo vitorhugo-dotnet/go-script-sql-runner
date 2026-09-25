@@ -152,13 +152,14 @@ describe('main runner workspace', () => {
 
     await user.click(screen.getByRole('button', { name: 'Edit 001-users.sql' }))
     const dialog = await screen.findByRole('dialog', { name: 'Edit 001-users.sql' })
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
     const editor = within(dialog).getByRole('textbox', { name: 'SQL content' })
     await user.clear(editor)
     await user.type(editor, 'SELECT 3;')
     await user.click(within(dialog).getByRole('button', { name: 'Save' }))
 
     expect(api.saveScriptContent).toHaveBeenCalledWith('local-dev', 'users', 'SELECT 3;')
-    expect(await screen.findByText('save failed')).toBeInTheDocument()
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('save failed')
     expect(dialog).toBeInTheDocument()
     expect(editor).toHaveValue('SELECT 3;')
   })
@@ -249,8 +250,9 @@ describe('main runner workspace', () => {
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete' }))
 
     expect(api.deleteProfile).toHaveBeenCalledWith('local-dev')
-    expect(await screen.findByText('delete failed')).toBeInTheDocument()
-    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+    const dialog = screen.getByRole('alertdialog')
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('delete failed')
+    expect(dialog).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Profile' })).toHaveValue('local-dev')
   })
 

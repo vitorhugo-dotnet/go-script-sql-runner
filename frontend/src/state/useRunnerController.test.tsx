@@ -43,6 +43,12 @@ const connectionResult = {
   schemas: ['apollo', 'mysql', 'TestDB'],
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((done) => { resolve = done })
+  return { promise, resolve }
+}
+
 function fakeApi(overrides: Partial<RunnerApi> = {}) {
   let executionHandler: ((event: ExecutionEvent) => void) | undefined
   const profiles = new Map([
@@ -287,6 +293,87 @@ describe('useRunnerController', () => {
     expect(returned).toEqual(clone)
     expect(result.current.profiles.map((profile) => profile.id)).toEqual(['first', 'second', 'clone'])
     expect(result.current.selectedProfile?.id).toBe('clone')
+  })
+
+  it('preserves user profile selections made while clone list and get refreshes are pending', async () => {
+    const clone: Profile = { ...firstProfile, id: 'clone', name: 'First (copy)' }
+    const refreshedClone: Profile = { ...clone, name: 'First (copy) refreshed' }
+    const thirdProfile: Profile = { ...secondProfile, id: 'third', name: 'Third' }
+    const listRefresh = deferred<Profile[]>()
+    const cloneRefresh = deferred<Profile>()
+    const listProfiles = vi.fn().mockResolvedValueOnce([firstProfile, secondProfile, thirdProfile]).mockReturnValueOnce(listRefresh.promise)
+    const getProfile = vi.fn().mockImplementation((id: string) => {
+      if (id === clone.id) return cloneRefresh.promise
+      if (id === secondProfile.id) return Promise.resolve(secondProfile)
+      if (id === thirdProfile.id) return Promise.resolve(thirdProfile)
+      return Promise.resolve(firstProfile)
+    })
+    const api = fakeApi({ listProfiles, getProfile, cloneProfile: vi.fn().mockResolvedValue(clone) })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
+    let clonePromise!: Promise<Profile | null>
+    act(() => { clonePromise = result.current.cloneSelectedProfile() })
+    await waitFor(() => expect(listProfiles).toHaveBeenCalledTimes(2))
+
+    await act(async () => { await result.current.selectProfile('second') })
+    expect(result.current.selectedProfile?.id).toBe('second')
+
+    await act(async () => {
+      listRefresh.resolve([firstProfile, secondProfile, thirdProfile, clone])
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(getProfile).toHaveBeenCalledWith('clone'))
+    expect(result.current.selectedProfile?.id).toBe('second')
+
+    await act(async () => { await result.current.selectProfile('third') })
+    await act(async () => {
+      cloneRefresh.resolve(refreshedClone)
+      await clonePromise
+    })
+
+    expect(result.current.selectedProfile?.id).toBe('third')
+    expect(result.current.profiles.find((profile) => profile.id === 'clone')).toEqual(refreshedClone)
+  })
+
+  it('preserves user profile selections made while delete list and get refreshes are pending', async () => {
+    const thirdProfile: Profile = { ...secondProfile, id: 'third', name: 'Third' }
+    const fourthProfile: Profile = { ...secondProfile, id: 'fourth', name: 'Fourth' }
+    const refreshedSecond: Profile = { ...secondProfile, name: 'Second refreshed' }
+    const listRefresh = deferred<Profile[]>()
+    const secondRefresh = deferred<Profile>()
+    const listProfiles = vi.fn().mockResolvedValueOnce([firstProfile, secondProfile, thirdProfile]).mockReturnValueOnce(listRefresh.promise)
+    const getProfile = vi.fn().mockImplementation((id: string) => {
+      if (id === 'second') return secondRefresh.promise
+      if (id === 'third') return Promise.resolve(thirdProfile)
+      if (id === 'fourth') return Promise.resolve(fourthProfile)
+      return Promise.resolve(firstProfile)
+    })
+    const api = fakeApi({ listProfiles, getProfile })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
+    let deletePromise!: Promise<boolean>
+    act(() => { deletePromise = result.current.deleteProfile('first') })
+    await waitFor(() => expect(listProfiles).toHaveBeenCalledTimes(2))
+
+    await act(async () => { await result.current.selectProfile('third') })
+    expect(result.current.selectedProfile?.id).toBe('third')
+    await act(async () => {
+      listRefresh.resolve([secondProfile, thirdProfile, fourthProfile])
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(getProfile).toHaveBeenCalledWith('second'))
+    expect(result.current.selectedProfile?.id).toBe('third')
+
+    await act(async () => { await result.current.selectProfile('fourth') })
+    await act(async () => {
+      secondRefresh.resolve(refreshedSecond)
+      expect(await deletePromise).toBe(true)
+    })
+
+    expect(result.current.selectedProfile?.id).toBe('fourth')
+    expect(result.current.profiles.find((profile) => profile.id === 'second')).toEqual(refreshedSecond)
   })
 
   it.each([

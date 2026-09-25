@@ -65,6 +65,7 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
 
   const openScriptEditor = async (profileID: string, scriptID: string, scriptName: string) => {
     if (runningRef.current || editorLoading) return
+    controller.clearError()
     setEditorLoading(true)
     try {
       const content = await controller.loadScriptContent(profileID, scriptID)
@@ -126,7 +127,10 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
             type="button"
             disabled={!profile || controller.running}
             onClick={() => {
-              if (profile) setDeleteTarget({ id: profile.id, name: profile.name })
+              if (profile) {
+                controller.clearError()
+                setDeleteTarget({ id: profile.id, name: profile.name })
+              }
             }}
           >
             Delete
@@ -397,6 +401,7 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
       <ProfileDeleteDialog
         open={deleteTarget !== null}
         profileName={deleteTarget?.name ?? ''}
+        error={controller.error}
         onCancel={() => setDeleteTarget(null)}
         onConfirm={async () => {
           if (!deleteTarget) return
@@ -411,6 +416,7 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
           scriptName={editorTarget.scriptName}
           initialContent={editorTarget.content}
           saving={editorSaving}
+          error={controller.error}
           onCancel={() => setEditorTarget(null)}
           onSave={async (content) => {
             if (runningRef.current) return false
