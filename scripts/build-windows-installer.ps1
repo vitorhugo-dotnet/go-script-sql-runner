@@ -53,7 +53,7 @@ try {
         throw "Failed to inspect the temporary WiX extension cache: $($extensionList.Trim())"
     }
     if ($extensionList -notmatch [regex]::Escape("$uiExtensionId/$uiExtensionVersion")) {
-        & $wixPath extension add --global "$uiExtensionId/$uiExtensionVersion"
+        & $wixPath extension add --global "$uiExtensionId/$uiExtensionVersion" -acceptEula wix7
         if ($LASTEXITCODE -ne 0) {
             throw "Failed to install pinned WiX extension $uiExtensionId $uiExtensionVersion."
         }
@@ -64,6 +64,7 @@ try {
         --ext "$uiExtensionId/$uiExtensionVersion" `
         -d "AppVersion=$AppVersion" `
         -d "PortableExecutable=$resolvedExecutable" `
+        -acceptEula wix7 `
         -o $installerPath
     if ($LASTEXITCODE -ne 0) {
         throw "WiX failed to build the installer at $installerPath."

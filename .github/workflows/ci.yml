@@ -102,7 +102,7 @@ jobs:
 
           $env:WIX_EXTENSION = Join-Path $env:RUNNER_TEMP 'go-script-sql-runner-wix-extensions-7.0.0'
           "WIX_EXTENSION=$env:WIX_EXTENSION" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          & (Join-Path $wixDirectory 'wix.exe') extension add --global 'WixToolset.UI.wixext/7.0.0'
+          & (Join-Path $wixDirectory 'wix.exe') extension add --global 'WixToolset.UI.wixext/7.0.0' -acceptEula wix7
           if ($LASTEXITCODE -ne 0) { throw 'Failed to install pinned WiX UI extension 7.0.0.' }
 
       - name: Build executable
