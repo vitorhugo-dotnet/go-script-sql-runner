@@ -37,17 +37,17 @@
           </RadioButtonGroup>
         </Control>
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="&amp;Back">
-          <Publish Event="NewDialog" Value="WelcomeDlg">1</Publish>
+          <Publish Event="NewDialog" Value="WelcomeDlg" Condition="1" />
         </Control>
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="&amp;Next">
-          <Publish Property="MSIINSTALLPERUSER" Value="1" Order="1">INSTALL_SCOPE = "CurrentUser"</Publish>
-          <Publish Property="INSTALLFOLDER" Value="[LocalAppDataFolder]Programs\Go Script SQL Runner" Order="2">INSTALL_SCOPE = "CurrentUser"</Publish>
-          <Publish Property="MSIINSTALLPERUSER" Value="" Order="1">INSTALL_SCOPE = "AllUsers"</Publish>
-          <Publish Property="INSTALLFOLDER" Value="[ProgramFiles64Folder]Go Script SQL Runner" Order="2">INSTALL_SCOPE = "AllUsers"</Publish>
-          <Publish Event="NewDialog" Value="LicenseAgreementDlg" Order="3">1</Publish>
+          <Publish Property="MSIINSTALLPERUSER" Value="1" Order="1" Condition="INSTALL_SCOPE = &quot;CurrentUser&quot;" />
+          <Publish Property="INSTALLFOLDER" Value="[LocalAppDataFolder]Programs\Go Script SQL Runner" Order="2" Condition="INSTALL_SCOPE = &quot;CurrentUser&quot;" />
+          <Publish Property="MSIINSTALLPERUSER" Order="1" Condition="INSTALL_SCOPE = &quot;AllUsers&quot;" />
+          <Publish Property="INSTALLFOLDER" Value="[ProgramFiles64Folder]Go Script SQL Runner" Order="2" Condition="INSTALL_SCOPE = &quot;AllUsers&quot;" />
+          <Publish Event="NewDialog" Value="LicenseAgreementDlg" Order="3" Condition="1" />
         </Control>
         <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="Cancel">
-          <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+          <Publish Event="SpawnDialog" Value="CancelDlg" Condition="1" />
         </Control>
       </Dialog>
     </UI>

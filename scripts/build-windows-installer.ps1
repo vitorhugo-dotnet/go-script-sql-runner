@@ -60,8 +60,8 @@ try {
     }
 
     & $wixPath build $packageSource $scopeDialogSource `
-        --arch x64 `
-        --ext "$uiExtensionId/$uiExtensionVersion" `
+        -arch x64 `
+        -ext "$uiExtensionId/$uiExtensionVersion" `
         -d "AppVersion=$AppVersion" `
         -d "PortableExecutable=$resolvedExecutable" `
         -acceptEula wix7 `
