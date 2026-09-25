@@ -86,21 +86,56 @@ jobs:
       - name: Install Wails CLI
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.13.0
 
-      - name: Build executable
-        run: wails build -clean -webview2 embed -windowsconsole -ldflags "-X main.currentBuildTag=build-${{ github.run_number }}"
+      - name: Setup .NET SDK for WiX
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
 
-      - name: Verify executable
+      - name: Install WiX Toolset 7 and UI extension
         shell: pwsh
         run: |
-          if (-not (Test-Path 'build/bin/go-script-sql-runner.exe')) {
-            throw 'Expected build/bin/go-script-sql-runner.exe was not produced.'
+          $wixVersion = '7.0.0'
+          $wixDirectory = Join-Path $env:TEMP "go-script-sql-runner-tools\wix\$wixVersion"
+          New-Item -ItemType Directory -Path $wixDirectory -Force | Out-Null
+          dotnet tool install wix --version $wixVersion --tool-path $wixDirectory --verbosity quiet
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to install pinned WiX Toolset 7.0.0.' }
+
+          $env:WIX_EXTENSION = Join-Path $env:RUNNER_TEMP 'go-script-sql-runner-wix-extensions-7.0.0'
+          "WIX_EXTENSION=$env:WIX_EXTENSION" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          & (Join-Path $wixDirectory 'wix.exe') extension add --global 'WixToolset.UI.wixext/7.0.0'
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to install pinned WiX UI extension 7.0.0.' }
+
+      - name: Build executable
+        run: wails build -clean -webview2 embed -windowsconsole -ldflags "-X main.currentBuildTag=build-${{ github.run_number }}" -o go-script-sql-runner-portable.exe
+
+      - name: Build MSI installer
+        shell: pwsh
+        run: |
+          ./scripts/build-windows-installer.ps1 `
+            -AppVersion '0.1.${{ github.run_number }}' `
+            -ExecutablePath 'build/bin/go-script-sql-runner-portable.exe' `
+            -OutputDirectory 'build/bin'
+
+      - name: Verify Windows release files
+        shell: pwsh
+        run: |
+          $expectedFiles = @(
+            'build/bin/go-script-sql-runner-portable.exe',
+            'build/bin/go-script-sql-runner-setup.msi'
+          )
+          foreach ($file in $expectedFiles) {
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
+              throw "Expected release file was not produced: $file"
+            }
           }
 
-      - name: Upload executable artifact
+      - name: Upload Windows release files
         uses: actions/upload-artifact@v4
         with:
           name: go-script-sql-runner-windows
-          path: build/bin/go-script-sql-runner.exe
+          path: |
+            build/bin/go-script-sql-runner-portable.exe
+            build/bin/go-script-sql-runner-setup.msi
           if-no-files-found: error
           retention-days: 14
 
@@ -112,17 +147,20 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Download executable artifact
+      - name: Download Windows release files
         uses: actions/download-artifact@v5
         with:
           name: go-script-sql-runner-windows
           path: release
 
-      - name: Verify release asset
+      - name: Verify Windows release files
         shell: bash
-        run: test -f release/go-script-sql-runner.exe
+        run: |
+          set -euo pipefail
+          test -f release/go-script-sql-runner-portable.exe
+          test -f release/go-script-sql-runner-setup.msi
 
-      - name: Publish executable release
+      - name: Publish Windows release files
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -133,7 +171,8 @@ jobs:
 
           if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
             gh release upload "${RELEASE_TAG}" \
-              release/go-script-sql-runner.exe \
+              'release/go-script-sql-runner-portable.exe#Windows portable executable' \
+              'release/go-script-sql-runner-setup.msi#Windows installer (MSI)' \
               --clobber
 
             gh release edit "${RELEASE_TAG}" \
@@ -143,7 +182,8 @@ jobs:
               --latest
           else
             gh release create "${RELEASE_TAG}" \
-              'release/go-script-sql-runner.exe#Windows executable' \
+              'release/go-script-sql-runner-portable.exe#Windows portable executable' \
+              'release/go-script-sql-runner-setup.msi#Windows installer (MSI)' \
               --target "${GITHUB_SHA}" \
               --title "Go Script SQL Runner - Build #${GITHUB_RUN_NUMBER}" \
               --notes "Automated Windows build from main. Commit: ${GITHUB_SHA}" \

@@ -14,7 +14,7 @@ import (
 const (
 	RepositoryID       int64 = 1326685411
 	defaultAPIBaseURL        = "https://api.github.com"
-	defaultAssetName         = "go-script-sql-runner.exe"
+	defaultAssetName         = "go-script-sql-runner-portable.exe"
 	githubAPIVersion         = "2026-03-10"
 )
 
