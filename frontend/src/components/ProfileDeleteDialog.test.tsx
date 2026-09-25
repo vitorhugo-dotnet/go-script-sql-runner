@@ -33,4 +33,41 @@ describe('ProfileDeleteDialog', () => {
     render(<ProfileDeleteDialog open={false} profileName="Production" onCancel={vi.fn()} onConfirm={vi.fn()} />)
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
   })
+
+  it('focuses Cancel, keeps focus inside, and makes the background inert', async () => {
+    const user = userEvent.setup()
+    const { container } = render(
+      <ProfileDeleteDialog open profileName="Production" onCancel={vi.fn()} onConfirm={vi.fn()} />,
+    )
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete profile' })
+    const cancel = within(dialog).getByRole('button', { name: 'Cancel' })
+    const confirm = within(dialog).getByRole('button', { name: 'Delete' })
+
+    expect(container).toHaveAttribute('inert')
+    expect(cancel).toHaveFocus()
+    await user.tab()
+    expect(confirm).toHaveFocus()
+    await user.tab()
+    expect(cancel).toHaveFocus()
+    await user.tab({ shift: true })
+    expect(confirm).toHaveFocus()
+  })
+
+  it('restores background interaction and the previous focus when closed', async () => {
+    const user = userEvent.setup()
+    const props = { profileName: 'Production', onCancel: vi.fn(), onConfirm: vi.fn() }
+    const { container, rerender } = render(
+      <><button type="button">Open deletion</button><ProfileDeleteDialog open={false} {...props} /></>,
+    )
+    const trigger = screen.getByRole('button', { name: 'Open deletion' })
+    await user.click(trigger)
+
+    rerender(<><button type="button">Open deletion</button><ProfileDeleteDialog open {...props} /></>)
+    expect(container).toHaveAttribute('inert')
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus()
+
+    rerender(<><button type="button">Open deletion</button><ProfileDeleteDialog open={false} {...props} /></>)
+    expect(container).not.toHaveAttribute('inert')
+    expect(trigger).toHaveFocus()
+  })
 })

@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import App from '../App'
@@ -137,6 +137,30 @@ describe('main runner workspace', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     expect(api.deleteProfile).not.toHaveBeenCalled()
+  })
+
+  it('deletes the profile named in confirmation even if selection changes before confirming', async () => {
+    const user = userEvent.setup()
+    const api = fakeApi()
+    const other = { ...profile, id: 'other', name: 'Other profile' }
+    api.listProfiles.mockResolvedValueOnce([profile, other]).mockResolvedValueOnce([other])
+    api.getProfile.mockImplementation(async (id: string) => (id === other.id ? other : profile))
+    render(<App api={api as never} />)
+
+    await screen.findByText('001-users.sql')
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete profile' })
+    expect(within(dialog).getByText('Local dev')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Profile' }), { target: { value: other.id } })
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Profile' })).toHaveValue(other.id))
+    expect(within(dialog).getByText('Local dev')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+    expect(api.deleteProfile).toHaveBeenCalledWith(profile.id)
+    expect(api.deleteProfile).not.toHaveBeenCalledWith(other.id)
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(screen.getByRole('combobox', { name: 'Profile' })).toHaveValue(other.id)
   })
 
   it('keeps confirmation open and shows an error when deletion fails', async () => {

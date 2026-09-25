@@ -104,32 +104,48 @@ export function useRunnerController(api: RunnerApi) {
     [api, applySelectedProfile],
   )
 
-  const deleteSelectedProfile = useCallback(async (): Promise<boolean> => {
-    if (!selectedProfile) return false
+  const deleteProfile = useCallback(async (profileID: string): Promise<boolean> => {
+    if (!profileID) return false
     try {
       setError(null)
-      await api.deleteProfile(selectedProfile.id)
+      await api.deleteProfile(profileID)
     } catch (cause) {
       setError(errorMessage(cause))
       return false
     }
 
-    const remaining = profiles.filter((profile) => profile.id !== selectedProfile.id)
+    const remaining = profiles.filter((profile) => profile.id !== profileID)
+    const deletedSelection = selectedProfile?.id === profileID
     setProfiles(remaining)
-    applySelectedProfile(remaining[0] ?? null)
+    if (deletedSelection) applySelectedProfile(remaining[0] ?? null)
     try {
-      const loaded = (await api.listProfiles()).filter((profile) => profile.id !== selectedProfile.id)
+      const loaded = (await api.listProfiles()).filter((profile) => profile.id !== profileID)
       setProfiles(loaded)
-      applySelectedProfile(loaded[0] ?? null)
-      if (loaded.length > 0) {
-        const fresh = await api.getProfile(loaded[0].id)
-        applySelectedProfile(fresh)
+      const next = deletedSelection
+        ? loaded[0] ?? null
+        : loaded.find((profile) => profile.id === selectedProfile?.id) ?? loaded[0] ?? null
+      if (next?.id === selectedProfile?.id && !deletedSelection) {
+        setSelectedProfile(next)
+      } else {
+        applySelectedProfile(next)
+      }
+      if (next) {
+        const fresh = await api.getProfile(next.id)
+        if (fresh.id === selectedProfile?.id && !deletedSelection) {
+          setSelectedProfile(fresh)
+        } else {
+          applySelectedProfile(fresh)
+        }
       }
     } catch (cause) {
       setError(errorMessage(cause))
     }
     return true
   }, [api, applySelectedProfile, profiles, selectedProfile])
+
+  const deleteSelectedProfile = useCallback(async (): Promise<boolean> => {
+    return selectedProfile ? deleteProfile(selectedProfile.id) : false
+  }, [deleteProfile, selectedProfile])
 
   const cloneSelectedProfile = useCallback(async (): Promise<Profile | null> => {
     if (!selectedProfile) return null
@@ -348,6 +364,7 @@ export function useRunnerController(api: RunnerApi) {
     loadProfiles,
     selectProfile,
     saveProfile,
+    deleteProfile,
     deleteSelectedProfile,
     cloneSelectedProfile,
     setSelectedSchema,

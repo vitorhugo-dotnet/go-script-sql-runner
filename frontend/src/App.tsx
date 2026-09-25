@@ -32,7 +32,7 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
   const controller = useRunnerController(api)
   const [detailedLogs, setDetailedLogs] = useState(false)
   const [profileDialogMode, setProfileDialogMode] = useState<'create' | 'edit' | null>(null)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const profile = controller.selectedProfile
   const scripts = [...(profile?.scripts ?? [])].sort((left, right) => left.order - right.order)
@@ -106,7 +106,9 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
             className={`${buttonClass} border-red-900/70 text-red-200 hover:bg-red-950`}
             type="button"
             disabled={!profile || controller.running}
-            onClick={() => setDeleteDialogOpen(true)}
+            onClick={() => {
+              if (profile) setDeleteTarget({ id: profile.id, name: profile.name })
+            }}
           >
             Delete
           </button>
@@ -363,12 +365,13 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
         }}
       />
       <ProfileDeleteDialog
-        open={deleteDialogOpen && !!profile}
-        profileName={profile?.name ?? ''}
-        onCancel={() => setDeleteDialogOpen(false)}
+        open={deleteTarget !== null}
+        profileName={deleteTarget?.name ?? ''}
+        onCancel={() => setDeleteTarget(null)}
         onConfirm={async () => {
-          const deleted = await controller.deleteSelectedProfile()
-          if (deleted) setDeleteDialogOpen(false)
+          if (!deleteTarget) return
+          const deleted = await controller.deleteProfile(deleteTarget.id)
+          if (deleted) setDeleteTarget(null)
         }}
       />
     </>

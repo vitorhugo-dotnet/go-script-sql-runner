@@ -92,6 +92,34 @@ function fakeApi(overrides: Partial<RunnerApi> = {}) {
 }
 
 describe('useRunnerController', () => {
+  it('deletes an explicit profile ID while preserving a different active selection', async () => {
+    const listProfiles = vi
+      .fn()
+      .mockResolvedValueOnce([firstProfile, secondProfile])
+      .mockResolvedValueOnce([secondProfile])
+    const deleteProfile = vi.fn().mockResolvedValue(undefined)
+    const api = fakeApi({ listProfiles, deleteProfile })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
+    await act(async () => {
+      await result.current.selectProfile('second')
+    })
+    await act(async () => {
+      await result.current.connect()
+    })
+    act(() => result.current.setSelectedSchema('apollo'))
+
+    await act(async () => {
+      expect(await result.current.deleteProfile('first')).toBe(true)
+    })
+
+    expect(deleteProfile).toHaveBeenCalledWith('first')
+    expect(result.current.profiles.map((profile) => profile.id)).toEqual(['second'])
+    expect(result.current.selectedProfile?.id).toBe('second')
+    expect(result.current.selectedSchema).toBe('apollo')
+  })
+
   it('clones the selected profile, refreshes the list, and selects the returned clone', async () => {
     const clone: Profile = { ...firstProfile, id: 'clone', name: 'First (copy)' }
     const listProfiles = vi
