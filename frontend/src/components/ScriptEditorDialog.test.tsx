@@ -86,4 +86,23 @@ describe('ScriptEditorDialog', () => {
     await user.click(screen.getByRole('button', { name: 'Discard changes' }))
     expect(onCancel).toHaveBeenCalledOnce()
   })
+
+  it('closes only the discard prompt on Escape and preserves the dirty editor draft', async () => {
+    const user = userEvent.setup()
+    const onCancel = vi.fn()
+    render(<ScriptEditorDialog {...baseProps} onSave={vi.fn().mockResolvedValue(true)} onCancel={onCancel} />)
+
+    const editor = screen.getByRole('textbox', { name: 'SQL content' })
+    await user.clear(editor)
+    await user.type(editor, 'SELECT 5;')
+    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByRole('alertdialog', { name: 'Discard changes?' })).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Edit 001-users.sql' })).toBeInTheDocument()
+    expect(editor).toHaveValue('SELECT 5;')
+    expect(onCancel).not.toHaveBeenCalled()
+  })
 })

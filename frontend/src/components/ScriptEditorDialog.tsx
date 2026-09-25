@@ -169,6 +169,7 @@ export default function ScriptEditorDialog({
             onKeyDown={(event) => {
               if (event.key === 'Escape') {
                 event.preventDefault()
+                event.stopPropagation()
                 setDiscardOpen(false)
                 closeRef.current?.focus()
               }
