@@ -102,7 +102,7 @@ describe('useRunnerController', () => {
 
     await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
     let loaded: string | null = null
-    await act(async () => { loaded = await result.current.loadScriptContent('script-one') })
+    await act(async () => { loaded = await result.current.loadScriptContent('first', 'script-one') })
 
     expect(loaded).toBe(content)
     expect(getScriptContent).toHaveBeenCalledWith('first', 'script-one')
@@ -118,7 +118,7 @@ describe('useRunnerController', () => {
 
     await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
     await act(async () => {
-      expect(await result.current.saveScriptContent('script-one', '-- Café\nSELECT 2;\n')).toBe(true)
+      expect(await result.current.saveScriptContent('first', 'script-one', '-- Café\nSELECT 2;\n')).toBe(true)
     })
 
     expect(saveScriptContent).toHaveBeenCalledWith('first', 'script-one', '-- Café\nSELECT 2;\n')
@@ -135,7 +135,7 @@ describe('useRunnerController', () => {
 
     await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
     await act(async () => {
-      expect(await result.current.saveScriptContent('script-one', 'changed')).toBe(true)
+      expect(await result.current.saveScriptContent('first', 'script-one', 'changed')).toBe(true)
     })
 
     expect(saveScriptContent).toHaveBeenCalledWith('first', 'script-one', 'changed')
@@ -150,9 +150,9 @@ describe('useRunnerController', () => {
     const { result } = renderHook(() => useRunnerController(api))
 
     await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
-    await act(async () => { expect(await result.current.loadScriptContent('script-one')).toBeNull() })
+    await act(async () => { expect(await result.current.loadScriptContent('first', 'script-one')).toBeNull() })
     expect(result.current.error).toBe('read failed')
-    await act(async () => { expect(await result.current.saveScriptContent('script-one', 'changed')).toBe(false) })
+    await act(async () => { expect(await result.current.saveScriptContent('first', 'script-one', 'changed')).toBe(false) })
     expect(result.current.error).toBe('write failed')
     expect(result.current.selectedProfile?.id).toBe('first')
   })
@@ -163,11 +163,77 @@ describe('useRunnerController', () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false))
     await act(async () => {
-      expect(await result.current.loadScriptContent('script-one')).toBeNull()
-      expect(await result.current.saveScriptContent('script-one', 'changed')).toBe(false)
+      expect(await result.current.loadScriptContent('first', 'script-one')).toBeNull()
+      expect(await result.current.saveScriptContent('first', 'script-one', 'changed')).toBe(false)
     })
     expect(api.getScriptContent).not.toHaveBeenCalled()
     expect(api.saveScriptContent).not.toHaveBeenCalled()
+  })
+
+  it('saves to the profile where the editor loaded content after selection changes to a clone', async () => {
+    const clone: Profile = { ...firstProfile, id: 'clone', name: 'First (copy)' }
+    const refreshed: Profile = { ...firstProfile, name: 'First refreshed' }
+    const getProfile = vi.fn()
+      .mockResolvedValueOnce(firstProfile)
+      .mockResolvedValueOnce(clone)
+      .mockResolvedValueOnce(refreshed)
+    const getScriptContent = vi.fn().mockResolvedValue('original SQL')
+    const saveScriptContent = vi.fn().mockResolvedValue(undefined)
+    const api = fakeApi({
+      listProfiles: vi.fn().mockResolvedValue([firstProfile, clone]),
+      getProfile,
+      getScriptContent,
+      saveScriptContent,
+    })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
+    await act(async () => {
+      expect(await result.current.loadScriptContent('first', 'shared-script')).toBe('original SQL')
+    })
+    await act(async () => { await result.current.selectProfile('clone') })
+    await act(async () => {
+      expect(await result.current.saveScriptContent('first', 'shared-script', 'edited SQL')).toBe(true)
+    })
+
+    expect(getScriptContent).toHaveBeenCalledWith('first', 'shared-script')
+    expect(saveScriptContent).toHaveBeenCalledWith('first', 'shared-script', 'edited SQL')
+    expect(getProfile).toHaveBeenLastCalledWith('first')
+    expect(result.current.selectedProfile).toEqual(clone)
+    expect(result.current.profiles.find((item) => item.id === 'first')).toEqual(refreshed)
+  })
+
+  it('does not restore the old selection when a pending save resolves', async () => {
+    const clone: Profile = { ...firstProfile, id: 'clone', name: 'First (copy)' }
+    const refreshed: Profile = { ...firstProfile, name: 'First refreshed' }
+    const getProfile = vi.fn()
+      .mockResolvedValueOnce(firstProfile)
+      .mockResolvedValueOnce(clone)
+      .mockResolvedValueOnce(refreshed)
+    let releaseSave: (() => void) | undefined
+    const saveScriptContent = vi.fn().mockImplementation(() => new Promise<void>((resolve) => {
+      releaseSave = resolve
+    }))
+    const api = fakeApi({
+      listProfiles: vi.fn().mockResolvedValue([firstProfile, clone]),
+      getProfile,
+      saveScriptContent,
+    })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
+    let savePromise!: Promise<boolean>
+    act(() => { savePromise = result.current.saveScriptContent('first', 'shared-script', 'edited SQL') })
+    await waitFor(() => expect(saveScriptContent).toHaveBeenCalledWith('first', 'shared-script', 'edited SQL'))
+    await act(async () => { await result.current.selectProfile('clone') })
+    await act(async () => {
+      releaseSave?.()
+      expect(await savePromise).toBe(true)
+    })
+
+    expect(getProfile).toHaveBeenLastCalledWith('first')
+    expect(result.current.selectedProfile).toEqual(clone)
+    expect(result.current.profiles.find((item) => item.id === 'first')).toEqual(refreshed)
   })
 
   it('deletes an explicit profile ID while preserving a different active selection', async () => {
