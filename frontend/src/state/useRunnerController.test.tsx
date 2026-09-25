@@ -164,7 +164,7 @@ describe('useRunnerController', () => {
     expect(result.current.profiles.map((profile) => profile.id)).toEqual(['first', 'second'])
   })
 
-  it('reports a failed delete refresh without claiming success', async () => {
+  it('keeps committed deletion and a valid fallback when list refresh fails', async () => {
     const listProfiles = vi
       .fn()
       .mockResolvedValueOnce([firstProfile, secondProfile])
@@ -174,10 +174,89 @@ describe('useRunnerController', () => {
 
     await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
     await act(async () => {
-      expect(await result.current.deleteSelectedProfile()).toBe(false)
+      expect(await result.current.deleteSelectedProfile()).toBe(true)
     })
     expect(result.current.error).toBe('refresh failed')
-    expect(result.current.selectedProfile?.id).toBe('first')
+    expect(result.current.profiles.map((profile) => profile.id)).toEqual(['second'])
+    expect(result.current.selectedProfile?.id).toBe('second')
+  })
+
+  it('keeps committed deletion when loading the refreshed fallback fails', async () => {
+    const listProfiles = vi
+      .fn()
+      .mockResolvedValueOnce([firstProfile, secondProfile])
+      .mockResolvedValueOnce([secondProfile])
+    const getProfile = vi
+      .fn()
+      .mockResolvedValueOnce(firstProfile)
+      .mockRejectedValueOnce(new Error('load failed'))
+    const api = fakeApi({ listProfiles, getProfile })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
+    await act(async () => {
+      expect(await result.current.deleteSelectedProfile()).toBe(true)
+    })
+    expect(result.current.error).toBe('load failed')
+    expect(result.current.profiles.map((profile) => profile.id)).toEqual(['second'])
+    expect(result.current.selectedProfile?.id).toBe('second')
+  })
+
+  it('clears selection after deleting the last profile even if refresh fails', async () => {
+    const listProfiles = vi
+      .fn()
+      .mockResolvedValueOnce([firstProfile])
+      .mockRejectedValueOnce(new Error('refresh failed'))
+    const api = fakeApi({ listProfiles })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
+    await act(async () => {
+      expect(await result.current.deleteSelectedProfile()).toBe(true)
+    })
+    expect(result.current.profiles).toEqual([])
+    expect(result.current.selectedProfile).toBeNull()
+    expect(result.current.error).toBe('refresh failed')
+  })
+
+  it('keeps the returned clone selected when list refresh fails', async () => {
+    const clone: Profile = { ...firstProfile, id: 'clone', name: 'First (copy)' }
+    const listProfiles = vi
+      .fn()
+      .mockResolvedValueOnce([firstProfile, secondProfile])
+      .mockRejectedValueOnce(new Error('refresh failed'))
+    const api = fakeApi({ listProfiles, cloneProfile: vi.fn().mockResolvedValue(clone) })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
+    await act(async () => {
+      expect(await result.current.cloneSelectedProfile()).toEqual(clone)
+    })
+    expect(result.current.error).toBe('refresh failed')
+    expect(result.current.profiles.map((profile) => profile.id)).toEqual(['first', 'second', 'clone'])
+    expect(result.current.selectedProfile).toEqual(clone)
+  })
+
+  it('keeps the returned clone selected when loading it after refresh fails', async () => {
+    const clone: Profile = { ...firstProfile, id: 'clone', name: 'First (copy)' }
+    const listProfiles = vi
+      .fn()
+      .mockResolvedValueOnce([firstProfile, secondProfile])
+      .mockResolvedValueOnce([firstProfile, secondProfile])
+    const getProfile = vi
+      .fn()
+      .mockResolvedValueOnce(firstProfile)
+      .mockRejectedValueOnce(new Error('load failed'))
+    const api = fakeApi({ listProfiles, getProfile, cloneProfile: vi.fn().mockResolvedValue(clone) })
+    const { result } = renderHook(() => useRunnerController(api))
+
+    await waitFor(() => expect(result.current.selectedProfile?.id).toBe('first'))
+    await act(async () => {
+      expect(await result.current.cloneSelectedProfile()).toEqual(clone)
+    })
+    expect(result.current.error).toBe('load failed')
+    expect(result.current.profiles.map((profile) => profile.id)).toEqual(['first', 'second', 'clone'])
+    expect(result.current.selectedProfile).toEqual(clone)
   })
 
   it('selects the first profile initially and clears runtime schema state on profile selection', async () => {

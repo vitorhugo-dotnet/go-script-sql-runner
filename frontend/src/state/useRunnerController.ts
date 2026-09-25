@@ -109,30 +109,54 @@ export function useRunnerController(api: RunnerApi) {
     try {
       setError(null)
       await api.deleteProfile(selectedProfile.id)
-      const loaded = await api.listProfiles()
-      const next = loaded.length > 0 ? await api.getProfile(loaded[0].id) : null
-      setProfiles(loaded)
-      applySelectedProfile(next)
-      return true
     } catch (cause) {
       setError(errorMessage(cause))
       return false
     }
-  }, [api, applySelectedProfile, selectedProfile])
+
+    const remaining = profiles.filter((profile) => profile.id !== selectedProfile.id)
+    setProfiles(remaining)
+    applySelectedProfile(remaining[0] ?? null)
+    try {
+      const loaded = (await api.listProfiles()).filter((profile) => profile.id !== selectedProfile.id)
+      setProfiles(loaded)
+      applySelectedProfile(loaded[0] ?? null)
+      if (loaded.length > 0) {
+        const fresh = await api.getProfile(loaded[0].id)
+        applySelectedProfile(fresh)
+      }
+    } catch (cause) {
+      setError(errorMessage(cause))
+    }
+    return true
+  }, [api, applySelectedProfile, profiles, selectedProfile])
 
   const cloneSelectedProfile = useCallback(async (): Promise<Profile | null> => {
     if (!selectedProfile) return null
+    let cloned: Profile
     try {
       setError(null)
-      const cloned = await api.cloneProfile(selectedProfile.id)
+      cloned = await api.cloneProfile(selectedProfile.id)
+    } catch (cause) {
+      setError(errorMessage(cause))
+      return null
+    }
+
+    setProfiles((current) => [...current.filter((profile) => profile.id !== cloned.id), cloned])
+    applySelectedProfile(cloned)
+    try {
       const loaded = await api.listProfiles()
+      const withClone = loaded.some((profile) => profile.id === cloned.id)
+        ? loaded.map((profile) => (profile.id === cloned.id ? cloned : profile))
+        : [...loaded, cloned]
+      setProfiles(withClone)
       const fresh = await api.getProfile(cloned.id)
-      setProfiles(loaded)
+      setProfiles((current) => current.map((profile) => (profile.id === fresh.id ? fresh : profile)))
       applySelectedProfile(fresh)
       return fresh
     } catch (cause) {
       setError(errorMessage(cause))
-      return null
+      return cloned
     }
   }, [api, applySelectedProfile, selectedProfile])
 
