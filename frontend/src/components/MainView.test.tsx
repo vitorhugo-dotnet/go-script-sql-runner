@@ -1,7 +1,14 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import App from '../App'
+
+vi.mock('../monacoSetup', () => ({}))
+vi.mock('@monaco-editor/react', () => ({
+  default: ({ value, onChange }: { value: string; onChange: (value: string) => void }) => (
+    <textarea aria-label="SQL content" value={value} onChange={(event) => onChange(event.target.value)} />
+  ),
+}))
 
 const repositoryUrl = 'https://github.com/vitorhugo-dotnet/go-script-sql-runner'
 
@@ -60,9 +67,13 @@ function fakeApi() {
     getProfile: vi.fn().mockResolvedValue(profile),
     createProfile: vi.fn().mockResolvedValue(profile),
     updateProfile: vi.fn().mockResolvedValue(profile),
+    deleteProfile: vi.fn().mockResolvedValue(undefined),
+    cloneProfile: vi.fn().mockResolvedValue({ ...profile, id: 'copy', name: 'Local dev (copy)' }),
     addScriptFromDialog: vi.fn().mockResolvedValue(null),
     addScriptsFromDialog: vi.fn().mockResolvedValue([]),
     removeScript: vi.fn().mockResolvedValue(undefined),
+    getScriptContent: vi.fn().mockResolvedValue('SELECT 1;\n'),
+    saveScriptContent: vi.fn().mockResolvedValue(undefined),
     reorderScripts: vi.fn().mockImplementation(async (_profileID: string, orderedIDs: string[]) => ({
       ...profile,
       scripts: orderedIDs.map((id, index) => ({
@@ -105,6 +116,188 @@ function fakeApi() {
 }
 
 describe('main runner workspace', () => {
+  it('offers a named Edit action per script and saves exact SQL through the captured profile', async () => {
+    const user = userEvent.setup()
+    const api = fakeApi()
+    render(<App api={api as never} />)
+
+    await screen.findByText('001-users.sql')
+    expect(screen.getByRole('button', { name: 'Edit 001-users.sql' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit 002-seed.sql' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Edit 001-users.sql' }))
+
+    expect(api.getScriptContent).toHaveBeenCalledWith('local-dev', 'users')
+    const dialog = await screen.findByRole('dialog', { name: 'Edit 001-users.sql' })
+    const editor = within(dialog).getByRole('textbox', { name: 'SQL content' })
+    expect(editor).toHaveValue('SELECT 1;\n')
+    await user.clear(editor)
+    await user.type(editor, '-- Café{enter}SELECT 2;{enter}')
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    expect(api.saveScriptContent).toHaveBeenCalledWith('local-dev', 'users', '-- Café\nSELECT 2;\n')
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit 001-users.sql' })).not.toBeInTheDocument())
+  })
+
+  it('shows load and save errors and retains the SQL draft after a failed save', async () => {
+    const user = userEvent.setup()
+    const api = fakeApi()
+    api.getScriptContent.mockRejectedValueOnce(new Error('load failed')).mockResolvedValueOnce('SELECT 1;\n')
+    api.saveScriptContent.mockRejectedValue(new Error('save failed'))
+    render(<App api={api as never} />)
+
+    await screen.findByText('001-users.sql')
+    await user.click(screen.getByRole('button', { name: 'Edit 001-users.sql' }))
+    expect(await screen.findByText('load failed')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Edit 001-users.sql' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Edit 001-users.sql' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Edit 001-users.sql' })
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
+    const editor = within(dialog).getByRole('textbox', { name: 'SQL content' })
+    await user.clear(editor)
+    await user.type(editor, 'SELECT 3;')
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    expect(api.saveScriptContent).toHaveBeenCalledWith('local-dev', 'users', 'SELECT 3;')
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('save failed')
+    expect(dialog).toBeInTheDocument()
+    expect(editor).toHaveValue('SELECT 3;')
+  })
+
+  it('keeps the editor bound to its original profile after the selection changes', async () => {
+    const user = userEvent.setup()
+    const api = fakeApi()
+    const clone = { ...profile, id: 'copy', name: 'Local dev (copy)' }
+    api.listProfiles.mockResolvedValue([profile, clone])
+    api.getProfile.mockImplementation(async (id: string) => (id === clone.id ? clone : profile))
+    render(<App api={api as never} />)
+
+    await screen.findByText('001-users.sql')
+    await user.click(screen.getByRole('button', { name: 'Edit 001-users.sql' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Edit 001-users.sql' })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Profile' }), { target: { value: clone.id } })
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Profile' })).toHaveValue(clone.id))
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }))
+
+    expect(api.saveScriptContent).toHaveBeenCalledWith(profile.id, 'users', 'SELECT 1;\n')
+    expect(screen.getByRole('combobox', { name: 'Profile' })).toHaveValue(clone.id)
+  })
+
+  it('clones the selected profile and selects the returned copy', async () => {
+    const user = userEvent.setup()
+    const api = fakeApi()
+    const clone = { ...profile, id: 'copy', name: 'Local dev (copy)' }
+    api.cloneProfile.mockResolvedValue(clone)
+    api.listProfiles.mockResolvedValueOnce([profile]).mockResolvedValueOnce([profile, clone])
+    api.getProfile.mockImplementation(async (id: string) => (id === clone.id ? clone : profile))
+    render(<App api={api as never} />)
+
+    await screen.findByText('001-users.sql')
+    await user.click(screen.getByRole('button', { name: 'Clone' }))
+
+    expect(api.cloneProfile).toHaveBeenCalledWith('local-dev')
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Profile' })).toHaveValue('copy'))
+    expect(screen.getByRole('option', { name: 'Local dev (copy)' })).toBeInTheDocument()
+  })
+
+  it('requires named confirmation and Cancel never deletes', async () => {
+    const user = userEvent.setup()
+    const api = fakeApi()
+    render(<App api={api as never} />)
+
+    await screen.findByText('001-users.sql')
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete profile' })
+    expect(within(dialog).getByText('Local dev')).toBeInTheDocument()
+    expect(api.deleteProfile).not.toHaveBeenCalled()
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(api.deleteProfile).not.toHaveBeenCalled()
+  })
+
+  it('deletes the profile named in confirmation even if selection changes before confirming', async () => {
+    const user = userEvent.setup()
+    const api = fakeApi()
+    const other = { ...profile, id: 'other', name: 'Other profile' }
+    api.listProfiles.mockResolvedValueOnce([profile, other]).mockResolvedValueOnce([other])
+    api.getProfile.mockImplementation(async (id: string) => (id === other.id ? other : profile))
+    render(<App api={api as never} />)
+
+    await screen.findByText('001-users.sql')
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete profile' })
+    expect(within(dialog).getByText('Local dev')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Profile' }), { target: { value: other.id } })
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Profile' })).toHaveValue(other.id))
+    expect(within(dialog).getByText('Local dev')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+    expect(api.deleteProfile).toHaveBeenCalledWith(profile.id)
+    expect(api.deleteProfile).not.toHaveBeenCalledWith(other.id)
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(screen.getByRole('combobox', { name: 'Profile' })).toHaveValue(other.id)
+  })
+
+  it('keeps confirmation open and shows an error when deletion fails', async () => {
+    const user = userEvent.setup()
+    const api = fakeApi()
+    api.deleteProfile.mockRejectedValue(new Error('delete failed'))
+    render(<App api={api as never} />)
+
+    await screen.findByText('001-users.sql')
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete' }))
+
+    expect(api.deleteProfile).toHaveBeenCalledWith('local-dev')
+    const dialog = screen.getByRole('alertdialog')
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('delete failed')
+    expect(dialog).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: 'Profile' })).toHaveValue('local-dev')
+  })
+
+  it('closes confirmation and clears selection after deleting the last profile', async () => {
+    const user = userEvent.setup()
+    const api = fakeApi()
+    api.listProfiles.mockResolvedValueOnce([profile]).mockResolvedValueOnce([])
+    render(<App api={api as never} />)
+
+    await screen.findByText('001-users.sql')
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete' }))
+
+    expect(api.deleteProfile).toHaveBeenCalledWith('local-dev')
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(screen.getByRole('combobox', { name: 'Profile' })).toHaveValue('')
+    expect(screen.getByRole('option', { name: 'No profiles' })).toBeInTheDocument()
+  })
+
+  it('closes confirmation after committed deletion even when refresh fails', async () => {
+    const user = userEvent.setup()
+    const api = fakeApi()
+    api.listProfiles.mockResolvedValueOnce([profile]).mockRejectedValueOnce(new Error('refresh failed'))
+    render(<App api={api as never} />)
+
+    await screen.findByText('001-users.sql')
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(screen.getByRole('option', { name: 'No profiles' })).toBeInTheDocument()
+    expect(screen.getByText('refresh failed')).toBeInTheDocument()
+  })
+
+  it('disables lifecycle actions when no profile is selected', async () => {
+    const api = fakeApi()
+    api.listProfiles.mockResolvedValue([])
+    render(<App api={api as never} />)
+
+    await screen.findByRole('option', { name: 'No profiles' })
+    expect(screen.getByRole('button', { name: 'Clone' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Edit 001-users.sql' })).not.toBeInTheDocument()
+  })
+
   it('shows the essential runner controls in the main window', () => {
     render(<App />)
 
@@ -223,6 +416,10 @@ describe('main runner workspace', () => {
     const runButton = screen.getByRole('button', { name: 'Run' })
     await user.click(runButton)
     expect(runButton).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Clone' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Edit 001-users.sql' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Edit 002-seed.sql' })).toBeDisabled()
 
     act(() => {
       api.emitExecutionEvent({
@@ -240,6 +437,9 @@ describe('main runner workspace', () => {
       finishRun?.({ results: [], succeeded: 2, failed: 0, aborted: false })
     })
     await waitFor(() => expect(runButton).not.toBeDisabled())
+    expect(screen.getByRole('button', { name: 'Clone' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Edit 001-users.sql' })).toBeEnabled()
   })
 
   it('opens the repository footer link through the Wails browser runtime', async () => {

@@ -26,8 +26,12 @@ func TestCheckerResolvesRepositoryByIDBeforeLatestRelease(t *testing.T) {
 				"html_url": "https://github.com/renamed-owner/go-script-sql-runner/releases/tag/build-42",
 				"assets": []map[string]string{
 					{
-						"name":                 "go-script-sql-runner.exe",
-						"browser_download_url": "https://github.com/renamed-owner/go-script-sql-runner/releases/download/build-42/go-script-sql-runner.exe",
+						"name":                 "go-script-sql-runner-portable.exe",
+						"browser_download_url": "https://github.com/renamed-owner/go-script-sql-runner/releases/download/build-42/go-script-sql-runner-portable.exe",
+					},
+					{
+						"name":                 "go-script-sql-runner-setup.msi",
+						"browser_download_url": "https://github.com/renamed-owner/go-script-sql-runner/releases/download/build-42/go-script-sql-runner-setup.msi",
 					},
 				},
 			})
@@ -62,8 +66,45 @@ func TestCheckerResolvesRepositoryByIDBeforeLatestRelease(t *testing.T) {
 	if result.LatestTag != "build-42" {
 		t.Fatalf("LatestTag = %q, want build-42", result.LatestTag)
 	}
-	if result.DownloadURL == "" {
-		t.Fatal("expected executable download URL")
+	wantDownloadURL := "https://github.com/renamed-owner/go-script-sql-runner/releases/download/build-42/go-script-sql-runner-portable.exe"
+	if result.DownloadURL != wantDownloadURL {
+		t.Fatalf("DownloadURL = %q, want portable asset %q", result.DownloadURL, wantDownloadURL)
+	}
+	if result.DownloadURL == "https://github.com/renamed-owner/go-script-sql-runner/releases/download/build-42/go-script-sql-runner-setup.msi" {
+		t.Fatal("update checker must not select the MSI installer")
+	}
+}
+
+func TestCheckerLeavesDownloadURLEmptyWhenPortableAssetIsAbsent(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/repositories/1326685411":
+			_, _ = w.Write([]byte(`{"full_name":"owner/go-script-sql-runner"}`))
+		case "/repos/owner/go-script-sql-runner/releases/latest":
+			_, _ = w.Write([]byte(`{"tag_name":"build-42","html_url":"https://example.invalid/build-42","assets":[{"name":"go-script-sql-runner-setup.msi","browser_download_url":"https://example.invalid/setup.msi"}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	checker := &Checker{
+		client:       server.Client(),
+		apiBaseURL:   server.URL,
+		repositoryID: 1326685411,
+		currentTag:   "build-41",
+	}
+
+	result, err := checker.Check(context.Background())
+	if err != nil {
+		t.Fatalf("Check() error = %v", err)
+	}
+	if result.DownloadURL != "" {
+		t.Fatalf("DownloadURL = %q, want empty when portable asset is missing", result.DownloadURL)
+	}
+	if result.LatestTag != "build-42" || !result.Available || result.ReleaseURL != "https://example.invalid/build-42" {
+		t.Fatalf("release metadata = %+v, want latest build metadata preserved", result)
 	}
 }
 

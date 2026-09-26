@@ -6,13 +6,19 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
+	"reflect"
+	"regexp"
 	"sort"
+	"strings"
 
 	"github.com/vitorhugo-dotnet/go-script-sql-runner/internal/profile"
 )
 
 var ErrNotFound = errors.New("profile not found")
+
+var canonicalProfileID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$`)
 
 type Repository struct {
 	root string
@@ -33,8 +39,21 @@ func (r *Repository) ensure() error {
 }
 
 func (r *Repository) Save(p profile.Profile) error {
+	if !validLookupID(p.ID) {
+		return fmt.Errorf("invalid profile id")
+	}
 	if err := profile.Validate(p); err != nil {
 		return err
+	}
+	if info, err := os.Lstat(r.ProfileDir(p.ID)); err == nil {
+		if !info.IsDir() {
+			return fmt.Errorf("profile %q path is not a directory", p.ID)
+		}
+		if _, err := r.Get(p.ID); err != nil && !errors.Is(err, ErrNotFound) {
+			return fmt.Errorf("load existing profile %q before save: %w", p.ID, err)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("check existing profile %q: %w", p.ID, err)
 	}
 	if err := r.ensure(); err != nil {
 		return err
@@ -66,6 +85,9 @@ func (r *Repository) Get(id string) (profile.Profile, error) {
 	if err != nil {
 		return profile.Profile{}, err
 	}
+	if p.ID != id {
+		return profile.Profile{}, fmt.Errorf("profile id mismatch: requested %q, stored %q", id, p.ID)
+	}
 	return p, nil
 }
 
@@ -79,7 +101,7 @@ func (r *Repository) List() ([]profile.Profile, error) {
 	}
 	profiles := make([]profile.Profile, 0, len(entries))
 	for _, entry := range entries {
-		if !entry.IsDir() {
+		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".clone-") {
 			continue
 		}
 		p, err := r.Get(entry.Name())
@@ -101,8 +123,106 @@ func (r *Repository) Delete(id string) error {
 	if !validLookupID(id) {
 		return fmt.Errorf("invalid profile id")
 	}
+	if _, err := r.Get(id); err != nil {
+		return fmt.Errorf("load profile %q before delete: %w", id, err)
+	}
 	if err := os.RemoveAll(r.ProfileDir(id)); err != nil {
 		return fmt.Errorf("delete profile: %w", err)
+	}
+	return nil
+}
+
+// Clone copies a profile's managed SQL files before publishing the destination.
+func (r *Repository) Clone(sourceID string, destination profile.Profile) error {
+	if !validLookupID(sourceID) || !validLookupID(destination.ID) {
+		return fmt.Errorf("invalid profile id")
+	}
+	if err := profile.Validate(destination); err != nil {
+		return fmt.Errorf("validate clone destination: %w", err)
+	}
+	if sourceID == destination.ID {
+		return fmt.Errorf("clone destination %q is the source profile", destination.ID)
+	}
+	source, err := r.Get(sourceID)
+	if err != nil {
+		return fmt.Errorf("load clone source %q: %w", sourceID, err)
+	}
+	if !reflect.DeepEqual(destination.Scripts, source.Scripts) {
+		return fmt.Errorf("clone destination scripts differ from source %q", sourceID)
+	}
+	if err := r.ensure(); err != nil {
+		return err
+	}
+	profilesRoot := filepath.Join(r.root, "profiles")
+	destinationDir := r.ProfileDir(destination.ID)
+	if _, err := os.Lstat(destinationDir); err == nil {
+		return fmt.Errorf("clone destination %q already exists", destination.ID)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("check clone destination %q: %w", destination.ID, err)
+	}
+
+	sourceDir := r.ProfileDir(sourceID)
+	sourceInfo, err := os.Lstat(sourceDir)
+	if err != nil {
+		return fmt.Errorf("stat clone source %q: %w", sourceID, err)
+	}
+	if !sourceInfo.IsDir() {
+		return fmt.Errorf("clone source %q is not a directory", sourceID)
+	}
+	resolvedSource, err := filepath.EvalSymlinks(sourceDir)
+	if err != nil {
+		return fmt.Errorf("resolve clone source %q: %w", sourceID, err)
+	}
+	stagingDir, err := os.MkdirTemp(profilesRoot, ".clone-")
+	if err != nil {
+		return fmt.Errorf("create clone staging directory: %w", err)
+	}
+	defer os.RemoveAll(stagingDir)
+
+	for _, script := range source.Scripts {
+		if !strings.EqualFold(filepath.Ext(script.File), ".sql") {
+			return fmt.Errorf("clone script %q is not a SQL file", script.ID)
+		}
+		sourcePath := filepath.Join(sourceDir, filepath.FromSlash(script.File))
+		rel, err := filepath.Rel(sourceDir, sourcePath)
+		if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return fmt.Errorf("clone script %q escapes source profile", script.ID)
+		}
+		resolvedPath, err := filepath.EvalSymlinks(sourcePath)
+		if err != nil {
+			return fmt.Errorf("resolve clone script %q: %w", script.ID, err)
+		}
+		resolvedRel, err := filepath.Rel(resolvedSource, resolvedPath)
+		if err != nil || resolvedRel == "." || resolvedRel == ".." || strings.HasPrefix(resolvedRel, ".."+string(filepath.Separator)) {
+			return fmt.Errorf("clone script %q escapes source profile", script.ID)
+		}
+		info, err := os.Lstat(sourcePath)
+		if err != nil {
+			return fmt.Errorf("stat clone script %q: %w", script.ID, err)
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("clone script %q is not a regular file", script.ID)
+		}
+		data, err := os.ReadFile(sourcePath)
+		if err != nil {
+			return fmt.Errorf("read clone script %q: %w", script.ID, err)
+		}
+		if err := atomicWrite(filepath.Join(stagingDir, rel), data, 0o600); err != nil {
+			return fmt.Errorf("write clone script %q: %w", script.ID, err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(stagingDir, "scripts"), 0o700); err != nil {
+		return fmt.Errorf("create clone script directory: %w", err)
+	}
+	var encoded bytes.Buffer
+	if err := profile.Encode(&encoded, destination); err != nil {
+		return fmt.Errorf("encode clone destination: %w", err)
+	}
+	if err := atomicWrite(filepath.Join(stagingDir, "profile.yaml"), encoded.Bytes(), 0o600); err != nil {
+		return fmt.Errorf("write clone profile: %w", err)
+	}
+	if err := os.Rename(stagingDir, destinationDir); err != nil {
+		return fmt.Errorf("publish clone destination %q: %w", destination.ID, err)
 	}
 	return nil
 }
@@ -210,6 +330,84 @@ func (r *Repository) ReorderScripts(profileID string, orderedIDs []string) error
 	return r.Save(p)
 }
 
+func (r *Repository) ReadScriptContent(profileID, scriptID string) (string, error) {
+	filename, err := r.scriptContentPath(profileID, scriptID)
+	if err != nil {
+		return "", err
+	}
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return "", fmt.Errorf("read script %q: %w", scriptID, err)
+	}
+	return string(data), nil
+}
+
+func (r *Repository) WriteScriptContent(profileID, scriptID, content string) error {
+	filename, err := r.scriptContentPath(profileID, scriptID)
+	if err != nil {
+		return err
+	}
+	if err := atomicWrite(filename, []byte(content), 0o600); err != nil {
+		return fmt.Errorf("write script %q: %w", scriptID, err)
+	}
+	return nil
+}
+
+func (r *Repository) scriptContentPath(profileID, scriptID string) (string, error) {
+	p, err := r.Get(profileID)
+	if err != nil {
+		return "", fmt.Errorf("get profile %q: %w", profileID, err)
+	}
+	var reference string
+	for _, script := range p.Scripts {
+		if script.ID == scriptID {
+			reference = script.File
+			break
+		}
+	}
+	if reference == "" {
+		return "", fmt.Errorf("script %q not found in profile %q", scriptID, profileID)
+	}
+	if strings.Contains(reference, `\`) || strings.Contains(reference, ":") || path.Clean(reference) != reference || !strings.HasPrefix(reference, "scripts/") {
+		return "", fmt.Errorf("script %q has an invalid file reference", scriptID)
+	}
+	components := strings.Split(reference, "/")
+	for _, component := range components {
+		if component == "" || component == "." || component == ".." || strings.TrimRight(component, ". ") != component {
+			return "", fmt.Errorf("script %q has an invalid file reference", scriptID)
+		}
+	}
+	profileDir := r.ProfileDir(profileID)
+	filename := filepath.Join(profileDir, filepath.FromSlash(reference))
+	rel, err := filepath.Rel(r.ScriptRoot(profileID), filename)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("script %q escapes profile scripts directory", scriptID)
+	}
+	current := profileDir
+	for index := 0; index <= len(components); index++ {
+		if index != 0 {
+			current = filepath.Join(current, components[index-1])
+		}
+		info, err := os.Lstat(current)
+		if err != nil {
+			return "", fmt.Errorf("stat script %q path: %w", scriptID, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return "", fmt.Errorf("script %q path contains a symlink", scriptID)
+		}
+		if index == len(components) {
+			if !info.Mode().IsRegular() {
+				return "", fmt.Errorf("script %q is not a regular file", scriptID)
+			}
+		} else if !info.IsDir() {
+			return "", fmt.Errorf("script %q path contains a non-directory", scriptID)
+		}
+	}
+	return filename, nil
+}
+
+var atomicRename = os.Rename
+
 func atomicWrite(path string, data []byte, mode os.FileMode) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o700); err != nil {
@@ -237,14 +435,21 @@ func atomicWrite(path string, data []byte, mode os.FileMode) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	if err := os.Rename(tmpName, path); err != nil {
+	if err := atomicRename(tmpName, path); err != nil {
 		return err
 	}
 	return nil
 }
 
 func validLookupID(id string) bool {
-	if id == "" || id == "." || id == ".." {
+	if !canonicalProfileID.MatchString(id) || strings.HasSuffix(id, ".") {
+		return false
+	}
+	stem := strings.ToUpper(strings.SplitN(id, ".", 2)[0])
+	if stem == "CON" || stem == "PRN" || stem == "AUX" || stem == "NUL" {
+		return false
+	}
+	if len(stem) == 4 && (stem[:3] == "COM" || stem[:3] == "LPT") && stem[3] >= '1' && stem[3] <= '9' {
 		return false
 	}
 	return filepath.Base(id) == id && filepath.Clean(id) == id

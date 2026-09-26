@@ -90,9 +90,13 @@ export interface RunnerApi {
   getProfile(profileID: string): Promise<Profile>
   createProfile(profile: Profile): Promise<Profile>
   updateProfile(profile: Profile): Promise<Profile>
+  deleteProfile(profileID: string): Promise<void>
+  cloneProfile(profileID: string): Promise<Profile>
   addScriptFromDialog(profileID: string): Promise<Script | null>
   addScriptsFromDialog(profileID: string): Promise<Script[]>
   removeScript(profileID: string, scriptID: string): Promise<void>
+  getScriptContent(profileID: string, scriptID: string): Promise<string>
+  saveScriptContent(profileID: string, scriptID: string, content: string): Promise<void>
   reorderScripts(profileID: string, orderedIDs: string[]): Promise<Profile>
   setScriptEnabled(profileID: string, scriptID: string, enabled: boolean): Promise<Profile>
   setScriptTransactionMode(profileID: string, scriptID: string, mode: TransactionMode | ''): Promise<Profile>

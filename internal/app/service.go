@@ -64,6 +64,10 @@ func (s *Service) Connect(ctx context.Context, profileID string) (database.Conne
 		s.connectionMu.Unlock()
 		return database.ConnectionResult{}, errors.Join(fmt.Errorf("service is closed"), client.Close())
 	}
+	if _, err := s.repository.Get(profileID); err != nil {
+		s.connectionMu.Unlock()
+		return database.ConnectionResult{}, errors.Join(fmt.Errorf("get profile %q before publishing connection: %w", profileID, err), client.Close())
+	}
 	previous := s.activeClient
 	s.activeClient = client
 	s.activeProfileID = profileID

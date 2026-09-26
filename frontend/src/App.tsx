@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { wailsRunnerApi } from './api/runner'
 import type { OnError, RunnerApi, TransactionMode, UpdateInfo } from './api/types'
 import ProfileDialog from './components/ProfileDialog'
+import ProfileDeleteDialog from './components/ProfileDeleteDialog'
 import SchemaSelect from './components/SchemaSelect'
+import ScriptEditorDialog from './components/ScriptEditorDialog'
 import UpdateNotice from './components/UpdateNotice'
 import { useRunnerController } from './state/useRunnerController'
 
@@ -31,7 +33,13 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
   const controller = useRunnerController(api)
   const [detailedLogs, setDetailedLogs] = useState(false)
   const [profileDialogMode, setProfileDialogMode] = useState<'create' | 'edit' | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null)
+  const [editorTarget, setEditorTarget] = useState<{ profileID: string; scriptID: string; scriptName: string; content: string } | null>(null)
+  const [editorLoading, setEditorLoading] = useState(false)
+  const [editorSaving, setEditorSaving] = useState(false)
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
+  const runningRef = useRef(controller.running)
+  runningRef.current = controller.running
   const profile = controller.selectedProfile
   const scripts = [...(profile?.scripts ?? [])].sort((left, right) => left.order - right.order)
   const connectionSummary = profile
@@ -54,6 +62,20 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
       cancelled = true
     }
   }, [api])
+
+  const openScriptEditor = async (profileID: string, scriptID: string, scriptName: string) => {
+    if (runningRef.current || editorLoading) return
+    controller.clearError()
+    setEditorLoading(true)
+    try {
+      const content = await controller.loadScriptContent(profileID, scriptID)
+      if (content !== null && !runningRef.current) {
+        setEditorTarget({ profileID, scriptID, scriptName, content })
+      }
+    } finally {
+      setEditorLoading(false)
+    }
+  }
 
   return (
     <>
@@ -91,6 +113,27 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
             onClick={() => setProfileDialogMode('edit')}
           >
             Edit
+          </button>
+          <button
+            className={buttonClass}
+            type="button"
+            disabled={!profile || controller.running}
+            onClick={() => void controller.cloneSelectedProfile()}
+          >
+            Clone
+          </button>
+          <button
+            className={`${buttonClass} border-red-900/70 text-red-200 hover:bg-red-950`}
+            type="button"
+            disabled={!profile || controller.running}
+            onClick={() => {
+              if (profile) {
+                controller.clearError()
+                setDeleteTarget({ id: profile.id, name: profile.name })
+              }
+            }}
+          >
+            Delete
           </button>
           <div className="flex-1" />
           <UpdateNotice info={updateInfo} onOpen={api.openExternalURL} />
@@ -236,6 +279,17 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
                       <button
                         className={buttonClass}
                         type="button"
+                        aria-label={`Edit ${script.name}`}
+                        disabled={controller.running || editorLoading}
+                        onClick={() => {
+                          if (profile) void openScriptEditor(profile.id, script.id, script.name)
+                        }}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className={buttonClass}
+                        type="button"
                         aria-label={`Move ${script.name} up`}
                         disabled={controller.running || index === 0}
                         onClick={() => void controller.moveScript(script.id, -1)}
@@ -344,6 +398,37 @@ export default function App({ api = wailsRunnerApi }: AppProps) {
           setProfileDialogMode(null)
         }}
       />
+      <ProfileDeleteDialog
+        open={deleteTarget !== null}
+        profileName={deleteTarget?.name ?? ''}
+        error={controller.error}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={async () => {
+          if (!deleteTarget) return
+          const deleted = await controller.deleteProfile(deleteTarget.id)
+          if (deleted) setDeleteTarget(null)
+        }}
+      />
+      {editorTarget && (
+        <ScriptEditorDialog
+          key={`${editorTarget.profileID}:${editorTarget.scriptID}`}
+          open
+          scriptName={editorTarget.scriptName}
+          initialContent={editorTarget.content}
+          saving={editorSaving}
+          error={controller.error}
+          onCancel={() => setEditorTarget(null)}
+          onSave={async (content) => {
+            if (runningRef.current) return false
+            setEditorSaving(true)
+            try {
+              return await controller.saveScriptContent(editorTarget.profileID, editorTarget.scriptID, content)
+            } finally {
+              setEditorSaving(false)
+            }
+          }}
+        />
+      )}
     </>
   )
 }

@@ -34,8 +34,12 @@ type ServicePort interface {
 	ListProfiles(context.Context) ([]profile.Profile, error)
 	GetProfile(context.Context, string) (profile.Profile, error)
 	UpdateProfile(context.Context, profile.Profile) (profile.Profile, error)
+	DeleteProfile(context.Context, string) error
+	CloneProfile(context.Context, string) (profile.Profile, error)
 	AddScript(context.Context, string, string) (profile.Script, error)
 	RemoveScript(context.Context, string, string) error
+	GetScriptContent(context.Context, string, string) (string, error)
+	SaveScriptContent(context.Context, string, string, string) error
 	ReorderScripts(context.Context, string, []string) (profile.Profile, error)
 	SetScriptEnabled(context.Context, string, string, bool) (profile.Profile, error)
 	SetScriptTransactionMode(context.Context, string, string, profile.TransactionMode) (profile.Profile, error)
@@ -73,6 +77,14 @@ func (b *Bridge) GetProfile(ctx context.Context, profileID string) (profile.Prof
 
 func (b *Bridge) UpdateProfile(ctx context.Context, p profile.Profile) (profile.Profile, error) {
 	return b.service.UpdateProfile(ctx, p)
+}
+
+func (b *Bridge) DeleteProfile(ctx context.Context, profileID string) error {
+	return b.service.DeleteProfile(ctx, profileID)
+}
+
+func (b *Bridge) CloneProfile(ctx context.Context, profileID string) (profile.Profile, error) {
+	return b.service.CloneProfile(ctx, profileID)
 }
 
 func (b *Bridge) AddScriptFromDialog(ctx context.Context, profileID string) (*profile.Script, error) {
@@ -124,6 +136,14 @@ func (b *Bridge) AddScriptsFromDialog(ctx context.Context, profileID string) ([]
 
 func (b *Bridge) RemoveScript(ctx context.Context, profileID, scriptID string) error {
 	return b.service.RemoveScript(ctx, profileID, scriptID)
+}
+
+func (b *Bridge) GetScriptContent(ctx context.Context, profileID, scriptID string) (string, error) {
+	return b.service.GetScriptContent(ctx, profileID, scriptID)
+}
+
+func (b *Bridge) SaveScriptContent(ctx context.Context, profileID, scriptID, content string) error {
+	return b.service.SaveScriptContent(ctx, profileID, scriptID, content)
 }
 
 func (b *Bridge) ReorderScripts(ctx context.Context, profileID string, orderedIDs []string) (profile.Profile, error) {

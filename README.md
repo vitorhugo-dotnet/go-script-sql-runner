@@ -16,6 +16,16 @@ For development/builds:
 - Go 1.26+
 - Node.js 24+
 - Wails v2.13.0
+- .NET SDK 10.0+ (used by the WiX 7 MSI builder)
+
+## Windows downloads
+
+GitHub Releases provide two Windows assets:
+
+- `go-script-sql-runner-portable.exe` is the portable application executable. Run it directly; it does not install application files or create a Start Menu shortcut. Profiles and logs are still stored in the current Windows user's `%AppData%` directory described below, not beside the executable.
+- `go-script-sql-runner-setup.msi` is the wizard installer. Choose **Only for me** to install under `%LocalAppData%\Programs\Go Script SQL Runner` without administrator rights, or **For all users** to install under `%ProgramFiles%\Go Script SQL Runner`, which requires Windows administrator approval.
+
+Both MSI choices keep each Windows user's profiles and logs in that user's `%AppData%\GoScriptSQLRunner\profiles` and `%AppData%\GoScriptSQLRunner\logs` directories. The MSI installs or removes the application and shortcut; it does not move or delete this per-user data. Each Windows account continues to use its own profiles, including when the app is installed for all users.
 
 ## Build
 
@@ -25,12 +35,13 @@ Use the reproducible build script:
 .\scripts\build.ps1
 ```
 
-It runs Go tests, installs the locked frontend dependencies with `npm ci`, runs frontend tests/build, and builds the Wails executable with the embedded WebView2 bootstrapper.
+It runs Go tests, installs the locked frontend dependencies with `npm ci`, runs frontend tests/build, and builds both the portable Wails executable with the embedded WebView2 bootstrapper and the MSI wizard installer.
 
 Output:
 
 ```text
-build/bin/go-script-sql-runner.exe
+build/bin/go-script-sql-runner-portable.exe
+build/bin/go-script-sql-runner-setup.msi
 ```
 
 ## AppData location
@@ -50,7 +61,7 @@ Each profile owns its copied SQL scripts under its profile directory. The fronte
 Start the executable without arguments:
 
 ```powershell
-.\go-script-sql-runner.exe
+.\go-script-sql-runner-portable.exe
 ```
 
 The default desktop window exposes the essential workflow without navigating to another screen:
@@ -70,15 +81,15 @@ Run-level overrides do not silently modify the saved profile. A script-level tra
 Supplying arguments routes the same executable to the CLI:
 
 ```powershell
-.\go-script-sql-runner.exe profile list
-.\go-script-sql-runner.exe profile show example
-.\go-script-sql-runner.exe run example
+.\go-script-sql-runner-portable.exe profile list
+.\go-script-sql-runner-portable.exe profile show example
+.\go-script-sql-runner-portable.exe run example
 ```
 
 For the complete command list:
 
 ```powershell
-.\go-script-sql-runner.exe --help
+.\go-script-sql-runner-portable.exe --help
 ```
 
 ## Profile import/export warning

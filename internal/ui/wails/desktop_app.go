@@ -83,6 +83,22 @@ func (a *DesktopApp) UpdateProfile(p profile.Profile) (profile.Profile, error) {
 	return a.bridge.UpdateProfile(ctx, p)
 }
 
+func (a *DesktopApp) DeleteProfile(profileID string) error {
+	ctx, err := a.appContext()
+	if err != nil {
+		return err
+	}
+	return a.bridge.DeleteProfile(ctx, profileID)
+}
+
+func (a *DesktopApp) CloneProfile(profileID string) (profile.Profile, error) {
+	ctx, err := a.appContext()
+	if err != nil {
+		return profile.Profile{}, err
+	}
+	return a.bridge.CloneProfile(ctx, profileID)
+}
+
 func (a *DesktopApp) AddScriptFromDialog(profileID string) (*profile.Script, error) {
 	ctx, err := a.appContext()
 	if err != nil {
@@ -105,6 +121,22 @@ func (a *DesktopApp) RemoveScript(profileID, scriptID string) error {
 		return err
 	}
 	return a.bridge.RemoveScript(ctx, profileID, scriptID)
+}
+
+func (a *DesktopApp) GetScriptContent(profileID, scriptID string) (string, error) {
+	ctx, err := a.appContext()
+	if err != nil {
+		return "", err
+	}
+	return a.bridge.GetScriptContent(ctx, profileID, scriptID)
+}
+
+func (a *DesktopApp) SaveScriptContent(profileID, scriptID, content string) error {
+	ctx, err := a.appContext()
+	if err != nil {
+		return err
+	}
+	return a.bridge.SaveScriptContent(ctx, profileID, scriptID, content)
 }
 
 func (a *DesktopApp) ReorderScripts(profileID string, orderedIDs []string) (profile.Profile, error) {
